@@ -1,5 +1,5 @@
 /**
- * Calm Quest — Home / Today (Flow B, feature spec §2), Phase 2b.
+ * Calm Quest — Home / Today (Flow B, feature spec §2), Phase 2b + Phase 3.
  *
  * The daily loop opens here: today's quest (1 Quest from the bundle via pure
  * date rotation), the Affirmation of the Day, a Gratitude Glimpse entry point,
@@ -9,6 +9,13 @@
  *  - Glimpse card → Glimpse screen (Phase 2c builds the full mini-game)
  *  - After completion the quest card shows its done state and the header
  *    shows XP, level and progress toward the next level.
+ *
+ * Phase 3 strengthens the streak chip: it derives the HONEST current position
+ * from StreakState + today (src/streaks/ui.ts) — during grace it reads
+ * "Day N secured — … grace remaining" instead of the stale "secured" the
+ * persisted ledger alone would show — refreshes on every focus (so a
+ * completion on Quest/Glimpse is reflected on return), and adds a Settings
+ * (gear) entry for the one gentle daily reminder.
  */
 
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -41,7 +48,7 @@ import {
 } from '../progress/progress';
 import { loadState, saveAffirmation } from '../storage/store';
 import type { AppState } from '../storage/store';
-import { streakMessage, streakStatus } from '../streaks/streak';
+import { streakUi } from '../streaks/ui';
 import { badges, buttons, cards, colors, page, radii, spacing } from '../theme';
 import { friendlyDate, localDateString } from '../utils/daily';
 
@@ -201,26 +208,45 @@ function AffirmationCard({
 }
 
 function StreakChip({ state }: { state: AppState }) {
-  const status = streakStatus(state.streak);
-  const message = streakMessage(state.streak);
+  const today = localDateString();
+  const ui = streakUi(state.streak, today);
+  const inGrace = ui.status === 'grace';
+  const resetsToday = ui.resetsToday;
   return (
-    <View
-      style={[
-        badges.chip,
-        styles.streakChip,
-        status === 'grace' && styles.streakChipGrace,
-      ]}
-    >
-      <Text
+    <>
+      <View
         style={[
-          badges.chipText,
-          styles.streakChipText,
-          status === 'grace' && styles.streakChipTextGrace,
+          badges.chip,
+          styles.streakChip,
+          inGrace && styles.streakChipGrace,
+          resetsToday && styles.streakChipResets,
         ]}
       >
-        {message}
-      </Text>
-    </View>
+        <Text
+          style={[
+            badges.chipText,
+            styles.streakChipText,
+            inGrace && styles.streakChipTextGrace,
+            resetsToday && styles.streakChipTextResets,
+          ]}
+        >
+          {ui.message}
+        </Text>
+      </View>
+      {/* A small, honest grace note below the chip — never a countdown, never
+          guilt (Flow C rule 6: neutral-positive during grace only). */}
+      {resetsToday ? (
+        <Text style={styles.graceNoteResets}>
+          Today still counts — a quiet minute whenever you're ready. And if you
+          let this day pass, that's okay too: Day 1 starts fresh when you say
+          today.
+        </Text>
+      ) : inGrace ? (
+        <Text style={styles.graceNote}>
+          Grace is holding your streak — take your time, no pressure.
+        </Text>
+      ) : null}
+    </>
   );
 }
 
@@ -271,11 +297,19 @@ export default function HomeScreen() {
     >
       {/* Header */}
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerLeft}>
           <Text style={styles.greeting}>{friendly}</Text>
           <Text style={styles.headline}>Today's quest</Text>
         </View>
         {state ? <StreakChip state={state} /> : null}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Settings — daily gentle reminder"
+          onPress={() => navigation.navigate('Settings')}
+          style={({ pressed }) => [styles.gearBtn, pressed && styles.pressed]}
+        >
+          <Text style={styles.gearText}>⚙︎</Text>
+        </Pressable>
       </View>
       {state ? <LevelChip state={state} /> : null}
 
@@ -348,6 +382,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: spacing.md,
     gap: spacing.sm,
+  },
+  headerLeft: {
+    flexShrink: 1,
+  },
+  gearBtn: {
+    minWidth: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xs,
+  },
+  gearText: {
+    fontSize: 22,
+    color: colors.inkSoft,
   },
   greeting: {
     fontSize: 13,
@@ -524,18 +571,45 @@ const styles = StyleSheet.create({
   streakChip: {
     alignSelf: 'center',
     backgroundColor: colors.sageSoft,
-    maxWidth: '60%',
+    maxWidth: '48%',
+    flexShrink: 1,
   },
   streakChipGrace: {
     backgroundColor: colors.creamDeep,
     borderWidth: 1,
     borderColor: colors.sand,
   },
+  streakChipResets: {
+    backgroundColor: colors.creamDeep,
+    borderWidth: 1,
+    borderColor: colors.softCoral,
+  },
   streakChipText: {
     color: colors.sageDeep,
   },
   streakChipTextGrace: {
     color: colors.inkSoft,
+  },
+  streakChipTextResets: {
+    color: colors.inkSoft,
+  },
+  graceNote: {
+    marginTop: spacing.xs,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.inkSoft,
+    textAlign: 'center',
+    maxWidth: '68%',
+    alignSelf: 'center',
+  },
+  graceNoteResets: {
+    marginTop: spacing.xs,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.softCoral,
+    textAlign: 'center',
+    maxWidth: '68%',
+    alignSelf: 'center',
   },
   foot: {
     marginTop: spacing.lg,

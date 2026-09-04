@@ -1,11 +1,12 @@
 /**
- * Calm Quest — root navigator (Phase 2b).
+ * Calm Quest — root navigator (Phase 2b, extended Phase 3).
  *
  * Flow A: first launch shows Onboarding; once the profile's `onboarded` flag
  * is persisted, launch goes straight to Home. `initialRouteName` is computed
  * from persisted state before the navigator mounts (one AsyncStorage read).
  * Home → Quest is the daily completion flow; Home → Glimpse is the entry
- * point for the Gratitude Glimpse mini-game (Phase 2c completes that screen).
+ * point for the Gratitude Glimpse mini-game; Home → Settings (Phase 3)
+ * carries the reminder toggle + time picker.
  */
 
 import { NavigationContainer, type Theme } from '@react-navigation/native';
@@ -19,6 +20,7 @@ import GlimpseScreen from '../screens/GlimpseScreen';
 import HomeScreen from '../screens/HomeScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
 import QuestScreen from '../screens/QuestScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 import type { AppRouteParamList } from './types';
 
 const Stack = createNativeStackNavigator<AppRouteParamList>();
@@ -79,6 +81,7 @@ export default function RootNavigator() {
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="Quest" component={QuestScreen} />
         <Stack.Screen name="Glimpse" component={GlimpseScreen} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

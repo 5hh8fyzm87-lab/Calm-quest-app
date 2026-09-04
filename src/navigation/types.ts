@@ -13,4 +13,6 @@ export type AppRouteParamList = {
   Quest: { questId: string };
   /** Gratitude Glimpse: pass the prompt id chosen for today. */
   Glimpse: { promptId: string };
+  /** Settings (Phase 3, F9): gentle-reminder toggle + time picker. */
+  Settings: undefined;
 };
