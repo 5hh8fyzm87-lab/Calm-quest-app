@@ -15,4 +15,9 @@ export type AppRouteParamList = {
   Glimpse: { promptId: string };
   /** Settings (Phase 3, F9): gentle-reminder toggle + time picker. */
   Settings: undefined;
+  /**
+   * Paywall (Phase 4a, Flow E): `auto` = the one-time post-3rd-loop modal;
+   * `growth` = the small header re-surface after the 7-day quiet window.
+   */
+  Paywall: { source: 'auto' | 'growth' } | undefined;
 };

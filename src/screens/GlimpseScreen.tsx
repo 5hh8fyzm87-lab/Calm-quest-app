@@ -33,6 +33,7 @@ import type { GlimpseEntry } from '../models/types';
 import { levelForXp, levelTitleInfo, XP_GLIMPSE } from '../progress/progress';
 import { glimpseForDate, loadState, saveGlimpse } from '../storage/store';
 import type { AppState } from '../storage/store';
+import { paywallSurface } from '../subscription/paywall';
 import { badges, buttons, cards, colors, page, radii, spacing } from '../theme';
 import { localDateString } from '../utils/daily';
 
@@ -110,14 +111,19 @@ function AmbientRing({ elapsed }: { elapsed: number }) {
 function GlimpseCompleteCard({
   entry,
   leveledUp,
+  levelGated,
   level,
   today,
+  onSeePlus,
   onDone,
 }: {
   entry: GlimpseEntry;
   leveledUp: boolean;
+  /** Phase 4a: raw level crossed into L6+ while tier is free — honest gate. */
+  levelGated: boolean;
   level: number;
   today: string;
+  onSeePlus: () => void;
   onDone: () => void;
 }) {
   const info = levelTitleInfo(level);
@@ -130,7 +136,21 @@ function GlimpseCompleteCard({
         <Text style={styles.entryText}>“{entry.text}”</Text>
       </View>
       <Text style={styles.keepsake}>{keepsakeLine(today)}</Text>
-      {leveledUp ? (
+      {levelGated ? (
+        <>
+          <Text style={styles.gateNote}>
+            That level is part of Calm Quest+ — your XP is safe and keeps
+            counting. Levels 1–5 stay free, always.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onSeePlus}
+            style={({ pressed }) => [buttons.ghost, pressed && styles.pressed]}
+          >
+            <Text style={buttons.ghostText}>See what Calm Quest+ includes</Text>
+          </Pressable>
+        </>
+      ) : leveledUp ? (
         <Text style={styles.levelNote}>
           Level {level} · {info.title} — {info.blessing}
         </Text>
@@ -163,9 +183,12 @@ export default function GlimpseScreen({ route }: { route: { params: { promptId: 
   const [savedEntry, setSavedEntry] = useState<GlimpseEntry | null>(null);
   const [freshSave, setFreshSave] = useState(false);
   const [leveledUp, setLeveledUp] = useState(false);
+  const [levelGated, setLevelGated] = useState(false);
   const [savedLevel, setSavedLevel] = useState(1);
   const busyRef = useRef(false);
   const startXpRef = useRef<number | null>(null);
+  // Phase 4a (Flow E): one-time paywall, queued behind the completion card.
+  const [pendingPaywall, setPendingPaywall] = useState(false);
 
   // Today's prompt: prefer the one Home passed (same rotation), fall back to
   // the deterministic pick so a deep link never shows a blank screen.
@@ -242,12 +265,25 @@ export default function GlimpseScreen({ route }: { route: { params: { promptId: 
         }
         return;
       }
-      setLeveledUp(levelForXp(before) < next.progress.level);
+      // Phase 4a level gating: raw level crossed into L6+ while tier is free.
+      // The persisted level is already capped (saveGlimpse stores
+      // displayLevel); this only swaps the celebration note for the gate note.
+      const rawBefore = levelForXp(before);
+      const rawAfter = levelForXp(next.progress.totalXp);
+      const gated = rawBefore < rawAfter && rawAfter > 5 && next.progress.level <= 5;
+      setLevelGated(gated);
+      setLeveledUp(!gated && levelForXp(before) < next.progress.level);
       setSavedLevel(next.progress.level);
       setSavedEntry(entry);
       setFreshSave(true);
       setState(next);
       setDone(true);
+
+      // Phase 4a (Flow E): queue the one-time paywall if this glimpse is the
+      // 3rd completed loop — presented after the completion card, never over it.
+      if (paywallSurface(next, today, true) === 'auto') {
+        setPendingPaywall(true);
+      }
     } catch {
       Alert.alert(
         'Could not save your glimpse',
@@ -261,6 +297,16 @@ export default function GlimpseScreen({ route }: { route: { params: { promptId: 
   // Done view: a fresh completion shows the entry back with its +20 XP;
   // a same-day return ("already saved") shows the archived entry with no
   // re-award. Neither path can double-credit — saveGlimpse guards by date.
+  /** Leave the screen; route to the queued paywall first, if the 3rd loop queued it. */
+  function leaveAfterCompletion() {
+    if (pendingPaywall) {
+      setPendingPaywall(false);
+      navigation.navigate('Paywall', { source: 'auto' });
+      return;
+    }
+    navigation.goBack();
+  }
+
   if (done && savedEntry) {
     return (
       <ScrollView
@@ -274,9 +320,11 @@ export default function GlimpseScreen({ route }: { route: { params: { promptId: 
           <GlimpseCompleteCard
             entry={savedEntry}
             leveledUp={leveledUp}
+            levelGated={levelGated}
             level={savedLevel}
             today={today}
-            onDone={() => navigation.goBack()}
+            onSeePlus={() => navigation.navigate('Paywall', { source: 'growth' })}
+            onDone={leaveAfterCompletion}
           />
         ) : (
           <View style={[cards.card, styles.doneCard]}>
@@ -494,6 +542,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: spacing.sm,
+  },
+  gateNote: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.inkSoft,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
   },
   doneBtn: {
     marginTop: spacing.sm,

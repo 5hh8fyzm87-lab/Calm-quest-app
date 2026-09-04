@@ -112,3 +112,39 @@ const BLESSINGS: readonly string[] = [
 export function levelTier(level: number): Tier {
   return level <= FREE_LEVELS ? 'free' : 'paid';
 }
+
+// ---------------------------------------------------------------------------
+// Level gating (Phase 4a, spec §5 / F4) — free users never hold a level above
+// FREE_LEVELS, but XP keeps accruing so a later upgrade reflects their real
+// total. No fake progress loss: the earned XP is never touched, only the
+// displayed/held level is capped while the tier is free.
+// ---------------------------------------------------------------------------
+
+/**
+ * The level a user holds at `totalXp` under `tier`: raw level math for paid,
+ * capped at FREE_LEVELS for free. Pure — the store and every screen branch on
+ * this so no free user is ever shown (or persisted as) level 6+.
+ */
+export function displayLevel(totalXp: number, tier: Tier): number {
+  const raw = levelForXp(totalXp);
+  return tier === 'paid' ? raw : Math.min(raw, FREE_LEVELS);
+}
+
+/**
+ * Whether the paid-level gate applies at this XP balance: true exactly when a
+ * free user's raw level is beyond FREE_LEVELS (their XP is "waiting" in L6+).
+ * Used to render the honest gate ("that level is part of Calm Quest+") at the
+ * moment the boundary is crossed, and to explain capped meters elsewhere.
+ */
+export function levelGate(totalXp: number, tier: Tier): {
+  gated: boolean;
+  rawLevel: number;
+  display: number;
+} {
+  const rawLevel = levelForXp(totalXp);
+  return {
+    gated: tier === 'free' && rawLevel > FREE_LEVELS,
+    rawLevel,
+    display: displayLevel(totalXp, tier),
+  };
+}

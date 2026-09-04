@@ -21,7 +21,7 @@ import type {
   UserProfile,
 } from '../models/types';
 import { applyCompletion, applyMissDay } from '../streaks/streak';
-import { levelForXp, XP_AFFIRMATION, XP_GLIMPSE, XP_QUEST } from '../progress/progress';
+import { displayLevel, levelForXp, XP_AFFIRMATION, XP_GLIMPSE, XP_QUEST } from '../progress/progress';
 
 /** The single key under which the entire app state is persisted. */
 export const STORAGE_KEY = 'calmquest/appState/v1';
@@ -53,6 +53,14 @@ export interface AppState {
   savedAffirmationIds: string[];
   glimpses: GlimpseEntry[];
   entitlements: Entitlements;
+  /**
+   * Phase 4a (Flow E): when the one-time paywall was declined ("Continue
+   * free"), as a local date "YYYY-MM-DD" — or null if it hasn't been seen.
+   * Local DATE (not ISO timestamp) because the re-nag window is day-based
+   * (7 days) and the app's day boundaries are the user's local day; a sync
+   * layer can normalize to UTC later. `undefined` in old payloads = not seen.
+   */
+  paywallSeenAt?: string | null;
   /** App content version — lets a future sync layer detect stale local data. */
   contentVersion: number;
 }
@@ -85,6 +93,7 @@ export function defaultState(): AppState {
     savedAffirmationIds: [],
     glimpses: [],
     entitlements: { tier: 'free' },
+    paywallSeenAt: null,
     contentVersion: 1,
   };
 }
@@ -129,6 +138,10 @@ export async function loadState(): Promise<AppState> {
       savedAffirmationIds: data.savedAffirmationIds ?? base.savedAffirmationIds,
       glimpses: data.glimpses ?? base.glimpses,
       entitlements: { ...base.entitlements, ...(data.entitlements ?? {}) },
+      // Phase 4a: absent in pre-paywall payloads → null (not seen). Also
+      // tolerates a junk non-string value from a hand-edited payload.
+      paywallSeenAt:
+        typeof data.paywallSeenAt === 'string' ? data.paywallSeenAt : base.paywallSeenAt,
       contentVersion: data.contentVersion ?? base.contentVersion,
     };
   } catch {
@@ -187,7 +200,9 @@ export function reconcileStreakForCompletion(
  *
  * One completion flag per local day (F1). Re-crediting an already-completed
  * day is a no-op — XP and streak credit arrive exactly once per day.
- * Level is recomputed from totalXp so it can never drift (F4).
+ * Level recomputes from totalXp, then applies the Phase 4a tier gate
+ * (§5/F4): a free user holds at most level 5 — XP above it keeps accruing
+ * so a later upgrade reflects their real total (no fake progress loss).
  * Persists via `saveState`; callers own the returned state.
  */
 export async function completeQuest(
@@ -196,6 +211,7 @@ export async function completeQuest(
   today: string,
 ): Promise<AppState | null> {
   if (state.quests.lastQuestCompletionDate === today) return null;
+  const totalXp = state.progress.totalXp + XP_QUEST;
   const next: AppState = {
     ...state,
     quests: {
@@ -208,8 +224,10 @@ export async function completeQuest(
     },
     streak: reconcileStreakForCompletion(state.streak, state.quests.lastQuestCompletionDate, today),
     progress: {
-      totalXp: state.progress.totalXp + XP_QUEST,
-      level: levelForXp(state.progress.totalXp + XP_QUEST),
+      totalXp,
+      // Phase 4a: capped at L5 while tier is 'free' (displayLevel); the raw
+      // math resumes the moment a verified entitlement lands.
+      level: displayLevel(totalXp, state.entitlements.tier),
     },
   };
   await saveState(next);
@@ -226,6 +244,7 @@ export async function saveAffirmation(
   affirmation: Affirmation,
 ): Promise<AppState> {
   const already = state.savedAffirmationIds.includes(affirmation.id);
+  const totalXp = already ? state.progress.totalXp : state.progress.totalXp + XP_AFFIRMATION;
   const next: AppState = {
     ...state,
     savedAffirmationIds: already
@@ -234,8 +253,9 @@ export async function saveAffirmation(
     progress: already
       ? state.progress
       : {
-          totalXp: state.progress.totalXp + XP_AFFIRMATION,
-          level: levelForXp(state.progress.totalXp + XP_AFFIRMATION),
+          totalXp,
+          // Phase 4a: same tier gate as quests — free users hold ≤ L5.
+          level: displayLevel(totalXp, state.entitlements.tier),
         },
   };
   await saveState(next);
@@ -262,12 +282,14 @@ export async function saveGlimpse(
   entry: GlimpseEntry,
 ): Promise<AppState | null> {
   if (state.glimpses.some((g) => g.date === entry.date)) return null;
+  const totalXp = state.progress.totalXp + XP_GLIMPSE;
   const next: AppState = {
     ...state,
     glimpses: [...state.glimpses, entry],
     progress: {
-      totalXp: state.progress.totalXp + XP_GLIMPSE,
-      level: levelForXp(state.progress.totalXp + XP_GLIMPSE),
+      totalXp,
+      // Phase 4a: same tier gate — XP accrues, level holds at ≤5 while free.
+      level: displayLevel(totalXp, state.entitlements.tier),
     },
   };
   await saveState(next);
@@ -312,6 +334,47 @@ export async function setReminderPrefs(
       reminderEnabled: prefs.enabled,
       reminderTime: prefs.time,
     },
+  };
+  await saveState(next);
+  return next;
+}
+
+// ---------------------------------------------------------------------------
+// Paywall + entitlement (Phase 4a, Flow E / F8)
+// ---------------------------------------------------------------------------
+
+/**
+ * Stamp the one-time paywall as seen ("Continue free" tapped). Idempotent:
+ * the FIRST decline date is kept — a later decline must never push the
+ * 7-day re-nag window further out.
+ */
+export async function markPaywallSeen(state: AppState, today: string): Promise<AppState> {
+  if (state.paywallSeenAt) return state; // first stamp wins; no-op if already set
+  const next: AppState = { ...state, paywallSeenAt: today };
+  await saveState(next);
+  return next;
+}
+
+/**
+ * Apply a VERIFIED entitlement snapshot (Phase 4a, F8). The ONLY store-side
+ * path tier may take toward 'paid': the snapshot must come from the
+ * SubscriptionService — i.e. a real store purchase/restore validated by the
+ * server. No UI code may write `tier: 'paid'` directly. Pass
+ * `{ tier: 'free' }` to downgrade honestly (e.g. a verified expiry passed).
+ */
+export async function applyEntitlement(
+  state: AppState,
+  entitlement: Entitlements,
+): Promise<AppState> {
+  const next: AppState = {
+    ...state,
+    // Level re-derives under the new tier: paid lifts the L5 cap and the
+    // user's full accrued XP shows through (no fake progress loss, F4).
+    progress: {
+      ...state.progress,
+      level: displayLevel(state.progress.totalXp, entitlement.tier),
+    },
+    entitlements: { ...entitlement },
   };
   await saveState(next);
   return next;
