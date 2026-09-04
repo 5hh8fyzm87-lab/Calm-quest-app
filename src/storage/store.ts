@@ -27,6 +27,12 @@ import { levelForXp, XP_AFFIRMATION, XP_GLIMPSE, XP_QUEST } from '../progress/pr
 export const STORAGE_KEY = 'calmquest/appState/v1';
 
 /**
+ * Default gentle-reminder time (Phase 3, F7: default ON, user-picked time).
+ * 08:00 is a calm, common slot — a morning pause before the day runs away.
+ */
+export const REMINDER_DEFAULT_TIME = '08:00';
+
+/**
  * Persisted app state. All fields are always present after `loadState`
  * (defaults are applied on load), so consumers never handle undefined.
  */
@@ -60,8 +66,11 @@ export function defaultProfile(): UserProfile {
     displayName: null,
     weekCheckIn: null,
     timeAvailable: null,
+    // Phase 3 (F7): one gentle daily reminder, default ON at 08:00. The OS
+    // permission dialog is what actually gates delivery; this is the app-level
+    // preference. The Settings screen lets the user switch it off or re-time it.
     reminderEnabled: true,
-    reminderTime: null,
+    reminderTime: REMINDER_DEFAULT_TIME,
     createdAt: new Date().toISOString(),
   };
 }
@@ -280,6 +289,28 @@ export async function setOnboarded(
       ...state.profile,
       path,
       onboarded: true,
+    },
+  };
+  await saveState(next);
+  return next;
+}
+
+/**
+ * Persist the reminder preference (Phase 3, F7/F9): on/off + "HH:mm" time.
+ * This is app-level state only — the OS permission lives outside the store.
+ * Callers then sync the single OS schedule via the reminders service
+ * (`syncScheduledReminder`) so the two never disagree.
+ */
+export async function setReminderPrefs(
+  state: AppState,
+  prefs: { enabled: boolean; time: string },
+): Promise<AppState> {
+  const next: AppState = {
+    ...state,
+    profile: {
+      ...state.profile,
+      reminderEnabled: prefs.enabled,
+      reminderTime: prefs.time,
     },
   };
   await saveState(next);
