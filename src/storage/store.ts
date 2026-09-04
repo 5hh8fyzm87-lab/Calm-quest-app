@@ -14,11 +14,14 @@ import type {
   Affirmation,
   Entitlements,
   GlimpseEntry,
+  ProgressState,
   Quest,
+  QuestCompletion,
   StreakState,
   UserProfile,
 } from '../models/types';
 import { applyCompletion, applyMissDay } from '../streaks/streak';
+import { levelForXp, XP_AFFIRMATION, XP_GLIMPSE, XP_QUEST } from '../progress/progress';
 
 /** The single key under which the entire app state is persisted. */
 export const STORAGE_KEY = 'calmquest/appState/v1';
@@ -29,11 +32,14 @@ export const STORAGE_KEY = 'calmquest/appState/v1';
  */
 export interface AppState {
   profile: UserProfile;
+  progress: ProgressState;
   streak: StreakState;
   /** Quest content library is static JSON; this tracks usage, not content. */
   quests: {
     /** Quest ids the user has completed (one completion flag per day). */
     completedQuestIds: string[];
+    /** Local dates of daily quest completions, newest last. */
+    completions: QuestCompletion[];
     /** Local date "YYYY-MM-DD" of the most recent quest completion. */
     lastQuestCompletionDate: string | null;
   };
@@ -64,8 +70,9 @@ export function defaultProfile(): UserProfile {
 export function defaultState(): AppState {
   return {
     profile: defaultProfile(),
+    progress: { totalXp: 0, level: 1 },
     streak: { streakDays: 0, graceDaysMissed: 0, lastQuestDate: null },
-    quests: { completedQuestIds: [], lastQuestCompletionDate: null },
+    quests: { completedQuestIds: [], completions: [], lastQuestCompletionDate: null },
     savedAffirmationIds: [],
     glimpses: [],
     entitlements: { tier: 'free' },
@@ -91,8 +98,25 @@ export async function loadState(): Promise<AppState> {
     const data = parsed as Partial<AppState>;
     return {
       profile: { ...base.profile, ...(data.profile ?? {}) },
+      progress: {
+        ...base.progress,
+        ...(data.progress ?? {}),
+        // Level is a cached re-render hint; the math always wins. A payload's
+        // stale progress.level recomputes from totalXp so nothing drifts.
+        level: levelForXp(data.progress?.totalXp ?? base.progress.totalXp),
+      },
       streak: { ...base.streak, ...(data.streak ?? {}) },
-      quests: { ...base.quests, ...(data.quests ?? {}) },
+      // Older payloads stored a flat `lastQuestCompletionDate` directly on the
+      // state object; hoist it into the quests block for continuity.
+      quests: {
+        ...base.quests,
+        ...(data.quests ?? {}),
+        lastQuestCompletionDate:
+          (data.quests as { lastQuestCompletionDate?: string | null } | undefined)
+            ?.lastQuestCompletionDate ??
+          (data as { lastQuestCompletionDate?: string | null }).lastQuestCompletionDate ??
+          base.quests.lastQuestCompletionDate,
+      },
       savedAffirmationIds: data.savedAffirmationIds ?? base.savedAffirmationIds,
       glimpses: data.glimpses ?? base.glimpses,
       entitlements: { ...base.entitlements, ...(data.entitlements ?? {}) },
@@ -137,7 +161,7 @@ export function reconcileStreakForCompletion(
     return applyCompletion({ streakDays: 0, graceDaysMissed: 0, lastQuestDate: null }, today);
   }
 
-  let cursor = lastQuestDate;
+  let cursor = addDays(lastQuestDate, 1);
   // Guard against pathological clocks: iterate at most 8 days back.
   let guard = 8;
   while (cursor < today && guard-- > 0) {
@@ -148,9 +172,83 @@ export function reconcileStreakForCompletion(
   return applyCompletion(next, today);
 }
 
-// ---------------------------------------------------------------------------
-// Profile helpers — thin wrappers so callers never hand-roll rule wiring.
-// ---------------------------------------------------------------------------
+/**
+ * Record a completed daily quest: mark the day complete, credit the streak
+ * (reconciling any missed days deterministically), and award +50 XP.
+ *
+ * One completion flag per local day (F1). Re-crediting an already-completed
+ * day is a no-op — XP and streak credit arrive exactly once per day.
+ * Level is recomputed from totalXp so it can never drift (F4).
+ * Persists via `saveState`; callers own the returned state.
+ */
+export async function completeQuest(
+  state: AppState,
+  quest: Quest,
+  today: string,
+): Promise<AppState | null> {
+  if (state.quests.lastQuestCompletionDate === today) return null;
+  const next: AppState = {
+    ...state,
+    quests: {
+      ...state.quests,
+      completedQuestIds: state.quests.completedQuestIds.includes(quest.id)
+        ? state.quests.completedQuestIds
+        : [...state.quests.completedQuestIds, quest.id],
+      completions: [...state.quests.completions, { date: today, questId: quest.id }],
+      lastQuestCompletionDate: today,
+    },
+    streak: reconcileStreakForCompletion(state.streak, state.quests.lastQuestCompletionDate, today),
+    progress: {
+      totalXp: state.progress.totalXp + XP_QUEST,
+      level: levelForXp(state.progress.totalXp + XP_QUEST),
+    },
+  };
+  await saveState(next);
+  return next;
+}
+
+/**
+ * Record that today's Affirmation of the Day was saved (+5 XP). One credit per
+ * affirmation per day; already-saved affirmations are a no-op. Level recomputes
+ * from totalXp. Persists via `saveState`; callers own the returned state.
+ */
+export async function saveAffirmation(
+  state: AppState,
+  affirmation: Affirmation,
+): Promise<AppState> {
+  const already = state.savedAffirmationIds.includes(affirmation.id);
+  const next: AppState = {
+    ...state,
+    savedAffirmationIds: already
+      ? state.savedAffirmationIds
+      : [...state.savedAffirmationIds, affirmation.id],
+    progress: already
+      ? state.progress
+      : {
+          totalXp: state.progress.totalXp + XP_AFFIRMATION,
+          level: levelForXp(state.progress.totalXp + XP_AFFIRMATION),
+        },
+  };
+  await saveState(next);
+  return next;
+}
+
+/** Append one glimpse entry and award +20 XP (F3 completion). */
+export async function saveGlimpse(
+  state: AppState,
+  entry: GlimpseEntry,
+): Promise<AppState> {
+  const next: AppState = {
+    ...state,
+    glimpses: [...state.glimpses, entry],
+    progress: {
+      totalXp: state.progress.totalXp + XP_GLIMPSE,
+      level: levelForXp(state.progress.totalXp + XP_GLIMPSE),
+    },
+  };
+  await saveState(next);
+  return next;
+}
 
 /**
  * Mark onboarding complete and persist the chosen path. Used by Flow A's
