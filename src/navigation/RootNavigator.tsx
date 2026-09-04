@@ -20,6 +20,7 @@ import GlimpseScreen from '../screens/GlimpseScreen';
 import HomeScreen from '../screens/HomeScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
 import PaywallScreen from '../screens/PaywallScreen';
+import PrivacyTermsScreen from '../screens/PrivacyTermsScreen';
 import QuestScreen from '../screens/QuestScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import type { AppRouteParamList } from './types';
@@ -83,6 +84,8 @@ export default function RootNavigator() {
         <Stack.Screen name="Quest" component={QuestScreen} />
         <Stack.Screen name="Glimpse" component={GlimpseScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
+        {/* Phase 5 (F9): in-app Privacy/Terms mirroring the site pages. */}
+        <Stack.Screen name="PrivacyTerms" component={PrivacyTermsScreen} />
         {/* Phase 4a (Flow E): one-time paywall + its day-7 header re-surface. */}
         <Stack.Screen name="Paywall" component={PaywallScreen} />
       </Stack.Navigator>

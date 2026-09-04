@@ -105,6 +105,14 @@ export interface UserProfile {
   reminderEnabled: boolean;
   /** Local "HH:mm" reminder time. */
   reminderTime: string | null;
+  /**
+   * Sound on/off preference (§3 F9; Phase 5). Default ON. MVP note: this is a
+   * persisted INTENT — the reminder is deliberately muted (no bundled audio
+   * asset yet) and the Pause-quest chime is a Phase 6 sound-design item, so
+   * today the pref is stored and truthful, and it wires to the reminder's
+   * sound once an audio asset exists.
+   */
+  soundEnabled: boolean;
   createdAt: string;
 }
 

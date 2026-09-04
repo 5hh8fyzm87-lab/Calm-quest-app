@@ -36,6 +36,7 @@ import {
   quests,
   verses,
 } from '../content';
+import { analytics } from '../analytics';
 import type { AppRouteParamList } from '../navigation/types';
 import type { Quest, Verse } from '../models/types';
 import { levelForXp, levelTitleInfo, FREE_LEVELS, TOTAL_LEVELS, XP_QUEST } from '../progress/progress';
@@ -307,6 +308,9 @@ export default function QuestScreen({ route }: { route: { params: { questId: str
     busyRef.current = true;
     try {
       const before = startXpRef.current ?? currentState.progress.totalXp;
+      // Phase 5 (S5): capture the pre-completion grace position so the
+      // analytics event can tell the truth about a grace-day completion.
+      const beforeStreakGrace = currentState.streak.graceDaysMissed;
       const next = await completeQuest(currentState, currentQuest, today);
       if (next === null) {
         // Day already completed (defensive; the screen shouldn't be reachable).
@@ -323,6 +327,20 @@ export default function QuestScreen({ route }: { route: { params: { questId: str
       // cap (raw went 5→6+ while the held level stayed ≤5).
       const levelGated = rawBefore < rawAfter && next.progress.level <= FREE_LEVELS && rawAfter > FREE_LEVELS;
       const leveledUp = !levelGated && rawBefore < rawAfter;
+      // Phase 5 (S5) analytics — stub seam, dev-only console logging. The
+      // events describe exactly what just happened (nothing fabricated):
+      // the completed quest, the streak after this completion, whether grace
+      // was in play, and a level boundary crossed when it really was.
+      analytics.track('quest_completed', { questId: currentQuest.id, type: currentQuest.type });
+      if (next.streak.streakDays > 0) {
+        analytics.track('streak_greater_than_0', { streakDays: next.streak.streakDays });
+      }
+      if (beforeStreakGrace > 0) {
+        analytics.track('grace_used', { graceDays: beforeStreakGrace });
+      }
+      if (leveledUp) {
+        analytics.track('level_up', { level: next.progress.level, totalXp: next.progress.totalXp });
+      }
       setResult({
         xpGained: XP_QUEST,
         totalXp: next.progress.totalXp,

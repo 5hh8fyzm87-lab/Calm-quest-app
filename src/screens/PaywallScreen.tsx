@@ -31,6 +31,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { analytics } from '../analytics';
 import type { AppRouteParamList } from '../navigation/types';
 import { loadState, markPaywallSeen } from '../storage/store';
 import type { AppState } from '../storage/store';
@@ -83,6 +84,13 @@ export default function PaywallScreen({
     };
   }, []);
 
+  // Phase 5 (S5): the paywall was SHOWN (auto or growth surface). Fired once
+  // per screen mount — exactly the moment the user sees the decision point.
+  useEffect(() => {
+    analytics.track('paywall_seen', { source });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /** "Continue free forever": stamp the FIRST decline date, close, no guilt. */
   async function continueFree() {
     if (!state) return;
@@ -116,6 +124,10 @@ export default function PaywallScreen({
         setStoreState('unavailable');
         return;
       }
+      // Phase 5 (S5): a real provider is available — the trial flow truly
+      // STARTED (the user tapped the CTA and the seam is live). Never fires
+      // while the stub answers false (there is no trial to start).
+      analytics.track('trial_started', { plan });
       const auth = await authService.createOrSignIn();
       if (!auth.ok || !auth.account) {
         setStoreState('unavailable');
@@ -142,6 +154,10 @@ export default function PaywallScreen({
       }
       const { applyEntitlement } = await import('../storage/store');
       const next = await applyEntitlement(merged, result.value);
+      // Phase 5 (S5): trial_converted fires ONLY on a VERIFIED entitlement
+      // landing (tier 'paid' persisted). The stub can never reach this line —
+      // no fabricated conversions, ever.
+      analytics.track('trial_converted', { plan, expiry: result.value.expiry ?? null });
       setState(next);
       setStoreState('granted');
     } catch {

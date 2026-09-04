@@ -36,6 +36,7 @@ import {
 } from 'react-native';
 
 import { pickToday, prompts } from '../content';
+import { analytics } from '../analytics';
 import { dayNumber } from '../content/rotation';
 import type { AppRouteParamList } from '../navigation/types';
 import type { GlimpseEntry } from '../models/types';
@@ -345,6 +346,16 @@ export default function GlimpseScreen({ route }: { route: { params: { promptId: 
       const gated = rawBefore < rawAfter && rawAfter > 5 && next.progress.level <= 5;
       setLevelGated(gated);
       setLeveledUp(!gated && levelForXp(before) < next.progress.level);
+      // Phase 5 (S5): the glimpse was REALLY saved (+20 XP, ledger row). The
+      // event never fires for a same-day re-open or a rejected cap — only for
+      // a fresh completion.
+      analytics.track('glimpse_completed', {
+        promptId: prompt?.id ?? null,
+        tier: currentState.entitlements.tier === 'paid' ? 'paid' : 'free',
+      });
+      if (!gated && next.progress.level > currentState.progress.level) {
+        analytics.track('level_up', { level: next.progress.level, totalXp: next.progress.totalXp });
+      }
       setSavedLevel(next.progress.level);
       setSavedEntry(entry);
       setFreshSave(true);
