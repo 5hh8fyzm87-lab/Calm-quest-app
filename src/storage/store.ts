@@ -233,11 +233,26 @@ export async function saveAffirmation(
   return next;
 }
 
-/** Append one glimpse entry and award +20 XP (F3 completion). */
+/**
+ * Today's (or any day's) saved glimpse, if one exists. The archive stays
+ * queryable so the completion screen can show the entry back (F3:
+ * "completion screen showing their entry back").
+ */
+export function glimpseForDate(state: AppState, date: string): GlimpseEntry | undefined {
+  return state.glimpses.find((g) => g.date === date);
+}
+
+/**
+ * Record a completed Gratitude Glimpse: archive the entry and award +20 XP
+ * (F3/F4). One credit per local day — a same-day re-completion is a no-op
+ * returning `null`, so XP can never double-credit. Level recomputes from
+ * totalXp. Persists via `saveState`; callers own the returned state.
+ */
 export async function saveGlimpse(
   state: AppState,
   entry: GlimpseEntry,
-): Promise<AppState> {
+): Promise<AppState | null> {
+  if (state.glimpses.some((g) => g.date === entry.date)) return null;
   const next: AppState = {
     ...state,
     glimpses: [...state.glimpses, entry],
