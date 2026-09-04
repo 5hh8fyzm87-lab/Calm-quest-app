@@ -15,6 +15,14 @@
  *    delivery is off until allowed in device Settings, and no reminder is
  *    scheduled. No retry loop, no pressure.
  *  - Re-enabled later via device Settings: next app open syncs it.
+ *
+ * Phase 4b (§5): a Calm Quest+ section — the current tier (from the persisted
+ * entitlement snapshot, which only applyEntitlement can set), a Restore
+ * purchases button that calls the SubscriptionService seam, and a Manage
+ * subscription entry. Both are HONESTLY STUBBED: the stub service answers
+ * reason 'stub', so restore says exactly "store not connected yet — nothing
+ * to restore" (never fake success) and manage says the store setup is
+ * coming soon. Same one-file-swap seam as the paywall.
  */
 
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -42,6 +50,7 @@ import {
 } from '../notifications/reminders';
 import { loadState, saveState } from '../storage/store';
 import type { AppState } from '../storage/store';
+import { subscriptionService } from '../subscription/stub';
 import { badges, buttons, cards, colors, page, radii, spacing } from '../theme';
 
 const COPY = {
@@ -60,6 +69,22 @@ const COPY = {
     'Could not save your reminder settings. They are stored on this device — please try again.',
   permError:
     'We could not ask for notification permission right now. You can switch the reminder on again any time.',
+  // Phase 4b — Calm Quest+ section.
+  plusSection: 'CALM QUEST+',
+  tierFree: 'Free — the daily loop, forever',
+  tierPaid: 'Calm Quest+ — everything unlocked',
+  tierNote:
+    'Your tier is saved on this device and only changes with a verified purchase or restore.',
+  restore: 'Restore purchases',
+  manage: 'Manage subscription',
+  restoring: 'Checking the store…',
+  // The stub service answers reason 'stub': say exactly what is (not) wired.
+  restoreStubTitle: 'Store not connected yet',
+  restoreStubCopy:
+    'Purchases aren\u2019t set up yet, so there\u2019s nothing to restore — and nothing was charged. When the App Store connection is live, this restores any Calm Quest+ you\u2019ve bought.',
+  manageStubTitle: 'Store setup coming soon',
+  manageStubCopy:
+    'Subscriptions will be managed in the App Store once the store connection is live. Nothing is billed today — there is no store to bill.',
 };
 
 type Nav = NativeStackNavigationProp<AppRouteParamList, 'Settings'>;
@@ -95,16 +120,26 @@ export default function SettingsScreen() {
   // one prompt); later focus events only read the current grant.
   const askedPermissionRef = useRef(false);
 
+  // Phase 4b — Calm Quest+ section state.
+  const [tier, setTier] = useState<'free' | 'paid'>('free');
+  const [restoring, setRestoring] = useState(false);
+  const [restoreNote, setRestoreNote] = useState<null | { title: string; copy: string }>(null);
+  const [manageOpen, setManageOpen] = useState(false);
+
   useFocusEffect(
     useCallback(() => {
       let active = true;
       (async () => {
-        const p = await readPrefs();
+        const [p, s] = await Promise.all([readPrefs(), loadState()]);
         if (!active) return;
         setLoaded(true);
         setEnabled(p.enabled);
         setTime(p.time ?? '08:00');
         setCanDeliver(p.canDeliver);
+        // Phase 4b: the tier shown is the persisted snapshot — the only
+        // writer is applyEntitlement (verified entitlements), so display is
+        // always honest.
+        setTier(s.entitlements.tier);
         // Reminder defaults ON (F7) — the first time the screen opens we ask
         // the OS once. Denial is handled kindly below; no retry loop.
         if (p.enabled && !p.canDeliver && !askedPermissionRef.current) {
@@ -189,6 +224,36 @@ export default function SettingsScreen() {
   function openPicker() {
     if (perturbed || saving) return;
     setShowPicker((v) => !v);
+  }
+
+  /**
+   * Phase 4b — Restore purchases, via the SubscriptionService seam. The stub
+   * answers reason 'stub', so the note says exactly what is true: the store
+   * isn't connected, nothing to restore, nothing charged. When the real
+   * service answers with a verified snapshot, applyEntitlement is the one
+   * honest write path. Never fake success, never invent an entitlement.
+   */
+  async function onRestore() {
+    if (restoring) return;
+    setRestoring(true);
+    setRestoreNote(null);
+    try {
+      const result = await subscriptionService.restore();
+      if (result.ok && result.value) {
+        // Real-service path: a VERIFIED snapshot → the one honest store write.
+        const s = await loadState();
+        const { applyEntitlement } = await import('../storage/store');
+        await applyEntitlement(s, result.value);
+        setTier(result.value.tier);
+        setRestoreNote(null);
+      } else {
+        setRestoreNote({ title: COPY.restoreStubTitle, copy: COPY.restoreStubCopy });
+      }
+    } catch {
+      setRestoreNote({ title: COPY.restoreStubTitle, copy: COPY.restoreStubCopy });
+    } finally {
+      setRestoring(false);
+    }
   }
 
   return (
@@ -298,6 +363,58 @@ export default function SettingsScreen() {
           Reminders are free and can never be sold or gated. There is no paid
           reminder tier — only this one.
         </Text>
+      </View>
+
+      {/* Phase 4b — Calm Quest+ section (§5). Honest tier display; restore +
+          manage are honestly stubbed at the seam. No upgrade pressure here —
+          this section informs; it never sells. */}
+      <Text style={cards.label}>{COPY.plusSection}</Text>
+      <View style={[cards.card, styles.plusCard]}>
+        <View style={styles.row}>
+          <View style={styles.rowText}>
+            <Text style={styles.rowTitle}>{tier === 'paid' ? COPY.tierPaid : COPY.tierFree}</Text>
+            <Text style={styles.rowSub}>{COPY.tierNote}</Text>
+          </View>
+          <View style={[badges.chip, tier === 'paid' ? badges.sage : badges.sand]}>
+            <Text style={[badges.chipText, tier === 'paid' ? badges.sageText : badges.sandText]}>
+              {tier === 'paid' ? 'PLUS' : 'FREE'}
+              </Text>
+          </View>
+        </View>
+
+        <View style={styles.plusActions}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: restoring }}
+            disabled={restoring}
+            onPress={() => void onRestore()}
+            style={({ pressed }) => [buttons.ghost, styles.plusBtn, pressed && styles.pressed]}
+          >
+            <Text style={buttons.ghostText}>{restoring ? COPY.restoring : COPY.restore}</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: manageOpen }}
+            onPress={() => setManageOpen((v) => !v)}
+            style={({ pressed }) => [buttons.ghost, styles.plusBtn, pressed && styles.pressed]}
+          >
+            <Text style={buttons.ghostText}>{COPY.manage}</Text>
+          </Pressable>
+        </View>
+
+        {restoreNote ? (
+          <View style={styles.plusNoteBox}>
+            <Text style={styles.plusNoteTitle}>{restoreNote.title}</Text>
+            <Text style={styles.plusNoteCopy}>{restoreNote.copy}</Text>
+          </View>
+        ) : null}
+
+        {manageOpen ? (
+          <View style={styles.plusNoteBox}>
+            <Text style={styles.plusNoteTitle}>{COPY.manageStubTitle}</Text>
+            <Text style={styles.plusNoteCopy}>{COPY.manageStubCopy}</Text>
+          </View>
+        ) : null}
       </View>
 
       {saved ? (
@@ -448,6 +565,34 @@ const styles = StyleSheet.create({
   savedChip: {
     alignSelf: 'center',
     marginTop: spacing.md,
+  },
+  plusCard: {
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  plusActions: {
+    marginTop: spacing.md,
+    gap: spacing.xs,
+  },
+  plusBtn: {
+    alignSelf: 'stretch',
+  },
+  plusNoteBox: {
+    marginTop: spacing.sm,
+    backgroundColor: colors.creamDeep,
+    borderRadius: radii.md,
+    padding: spacing.md,
+  },
+  plusNoteTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.ink,
+    marginBottom: spacing.xs,
+  },
+  plusNoteCopy: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.inkSoft,
   },
   pressed: {
     opacity: 0.88,
