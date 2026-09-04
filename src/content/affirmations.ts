@@ -1,0 +1,93 @@
+/**
+ * Calm Quest — affirmations (Phase 1 SAMPLE bundle).
+ *
+ * 75 affirmations: 15 per theme × 5 themes. Each is ≤1 sentence, gentle,
+ * faith-rooted but non-denominational. No toxic positivity (no "just think
+ * positive"), no guaranteed outcomes, no medical claims, no denominational
+ * markers. SAMPLE starter set — replaced wholesale in the in-house content
+ * pass (see CONTENT_META in index.ts).
+ */
+import type { Affirmation } from '../models/types';
+
+export const affirmations: Affirmation[] = [
+  // ---------------------------------------------------------------- gratitude
+  { id: 'aff-gratitude-01', theme: 'gratitude', text: 'Something good came to me today — I can look for it and probably find it.' },
+  { id: 'aff-gratitude-02', theme: 'gratitude', text: 'I am learning to notice small gifts in ordinary hours.' },
+  { id: 'aff-gratitude-03', theme: 'gratitude', text: 'Thankfulness is a practice — one small "thank you" is enough for today.' },
+  { id: 'aff-gratitude-04', theme: 'gratitude', text: 'I can be honest about a hard day and still hold onto one good thing.' },
+  { id: 'aff-gratitude-05', theme: 'gratitude', text: 'There is always something worth naming, even when it is very small.' },
+  { id: 'aff-gratitude-06', theme: 'gratitude', text: 'Today I have breath, and that is a place to start.' },
+  { id: 'aff-gratitude-07', theme: 'gratitude', text: 'I can thank the One who gives gifts without pretending everything is easy.' },
+  { id: 'aff-gratitude-08', theme: 'gratitude', text: 'My attention is a gift I can spend on what is good.' },
+  { id: 'aff-gratitude-09', theme: 'gratitude', text: 'Kindness shown to me today is worth remembering.' },
+  { id: 'aff-gratitude-10', theme: 'gratitude', text: 'I do not need a perfect day to have a grateful one.' },
+  { id: 'aff-gratitude-11', theme: 'gratitude', text: 'Gratitude and honesty can sit at the same table.' },
+  { id: 'aff-gratitude-12', theme: 'gratitude', text: 'Every good gift has a Giver — and I am glad of that today.' },
+  { id: 'aff-gratitude-13', theme: 'gratitude', text: 'I can give thanks in this circumstance, not only after it changes.' },
+  { id: 'aff-gratitude-14', theme: 'gratitude', text: 'A grateful heart grows slowly, and mine is growing.' },
+  { id: 'aff-gratitude-15', theme: 'gratitude', text: 'Today I will notice one good thing on purpose.' },
+  // ----------------------------------------------------------------- stillness
+  { id: 'aff-stillness-01', theme: 'stillness', text: 'I am allowed to rest — rest is not a reward I must earn.' },
+  { id: 'aff-stillness-02', theme: 'stillness', text: 'In the quiet, I can remember who holds my day.' },
+  { id: 'aff-stillness-03', theme: 'stillness', text: 'My worth is not measured by how much I produce today.' },
+  { id: 'aff-stillness-04', theme: 'stillness', text: 'Being still for one minute is a gentle and real accomplishment.' },
+  { id: 'aff-stillness-05', theme: 'stillness', text: 'I can put the load down for a moment; it will still be there if I pick it up again.' },
+  { id: 'aff-stillness-06', theme: 'stillness', text: 'Peace does not have to be earned — it can simply be received.' },
+  { id: 'aff-stillness-07', theme: 'stillness', text: 'My body and mind are telling me something when I slow down, and I can listen.' },
+  { id: 'aff-stillness-08', theme: 'stillness', text: 'I do not have to be loud to matter.' },
+  { id: 'aff-stillness-09', theme: 'stillness', text: 'Slowing down is not falling behind; it is coming home to myself.' },
+  { id: 'aff-stillness-10', theme: 'stillness', text: 'Today I will give my attention a few quiet minutes.' },
+  { id: 'aff-stillness-11', theme: 'stillness', text: 'Rest is not laziness; it is trust with my eyes open.' },
+  { id: 'aff-stillness-12', theme: 'stillness', text: 'I can be still and know that I am not alone in this.' },
+  { id: 'aff-stillness-13', theme: 'stillness', text: 'Even a tired heart can find a moment of quiet.' },
+  { id: 'aff-stillness-14', theme: 'stillness', text: 'God is not in a hurry with me, so I do not have to be either.' },
+  { id: 'aff-stillness-15', theme: 'stillness', text: 'My strength can be renewed in quietness, one slow breath at a time.' },
+  // ------------------------------------------------------------------- purpose
+  { id: 'aff-purpose-01', theme: 'purpose', text: 'I am made on purpose, and I am here for a reason.' },
+  { id: 'aff-purpose-02', theme: 'purpose', text: 'My purpose does not have to be grand to be real.' },
+  { id: 'aff-purpose-03', theme: 'purpose', text: 'I was created for good works — and I can step into one today.' },
+  { id: 'aff-purpose-04', theme: 'purpose', text: 'The next right step is enough; I do not need the whole map.' },
+  { id: 'aff-purpose-05', theme: 'purpose', text: 'The gifts in my hands are not accidents; they are clues.' },
+  { id: 'aff-purpose-06', theme: 'purpose', text: 'I can serve someone today in a small, quiet way.' },
+  { id: 'aff-purpose-07', theme: 'purpose', text: 'Trusting the path ahead frees me from carrying it alone.' },
+  { id: 'aff-purpose-08', theme: 'purpose', text: 'What I do with love has meaning, no matter how small it looks.' },
+  { id: 'aff-purpose-09', theme: 'purpose', text: 'My story is still being written, and today is one of its pages.' },
+  { id: 'aff-purpose-10', theme: 'purpose', text: 'I can be useful without being exhausted — even a little is enough.' },
+  { id: 'aff-purpose-11', theme: 'purpose', text: 'Purpose often wears ordinary clothes: a meal, a word, a helping hand.' },
+  { id: 'aff-purpose-12', theme: 'purpose', text: 'The One who began good work in me will not drop it.' },
+  { id: 'aff-purpose-13', theme: 'purpose', text: 'I am free to take the next step without knowing all the answers.' },
+  { id: 'aff-purpose-14', theme: 'purpose', text: 'Someone benefits from the person I am becoming.' },
+  { id: 'aff-purpose-15', theme: 'purpose', text: 'Today I will do one small thing that matters.' },
+  // --------------------------------------------------------------- forgiveness
+  { id: 'aff-forgiveness-01', theme: 'forgiveness', text: 'Forgiveness releases me, even when the other person never changes.' },
+  { id: 'aff-forgiveness-02', theme: 'forgiveness', text: 'I can be honest that I was hurt — honesty and release belong together.' },
+  { id: 'aff-forgiveness-03', theme: 'forgiveness', text: 'I have been forgiven much; I can pass grace along.' },
+  { id: 'aff-forgiveness-04', theme: 'forgiveness', text: 'Being gentle with myself is a kind of forgiveness too.' },
+  { id: 'aff-forgiveness-05', theme: 'forgiveness', text: 'Carrying a grudge is heavy; I am allowed to put it down.' },
+  { id: 'aff-forgiveness-06', theme: 'forgiveness', text: 'My heart can be tender and strong at the same time.' },
+  { id: 'aff-forgiveness-07', theme: 'forgiveness', text: 'Forgiveness is a process, and I am allowed to be in the middle of it.' },
+  { id: 'aff-forgiveness-08', theme: 'forgiveness', text: 'I do not have to forget to forgive.' },
+  { id: 'aff-forgiveness-09', theme: 'forgiveness', text: 'Grace toward others starts with grace toward myself.' },
+  { id: 'aff-forgiveness-10', theme: 'forgiveness', text: 'I can release what was never mine to hold.' },
+  { id: 'aff-forgiveness-11', theme: 'forgiveness', text: 'As I have been forgiven, I can forgive — one small step at a time.' },
+  { id: 'aff-forgiveness-12', theme: 'forgiveness', text: 'My mistakes do not have the last word about who I am.' },
+  { id: 'aff-forgiveness-13', theme: 'forgiveness', text: 'I can wish someone well without letting them harm me again.' },
+  { id: 'aff-forgiveness-14', theme: 'forgiveness', text: 'Old wounds can soften with time and grace.' },
+  { id: 'aff-forgiveness-15', theme: 'forgiveness', text: 'Today I choose release over rehearsal — even if only for a minute.' },
+  // ------------------------------------------------------------------ patience
+  { id: 'aff-patience-01', theme: 'patience', text: 'Growth is slow, and that is how growth has always worked.' },
+  { id: 'aff-patience-02', theme: 'patience', text: 'Waiting is not wasted; something is being renewed in me.' },
+  { id: 'aff-patience-03', theme: 'patience', text: 'I can be gentle with my own pace.' },
+  { id: 'aff-patience-04', theme: 'patience', text: 'Patience is not passive — it is staying when staying is hard.' },
+  { id: 'aff-patience-05', theme: 'patience', text: 'What is unfinished in me is not a failure; it is a season.' },
+  { id: 'aff-patience-06', theme: 'patience', text: 'I can wait without grinding my teeth, one moment at a time.' },
+  { id: 'aff-patience-07', theme: 'patience', text: 'The fruit of patience ripens quietly, and mine is ripening.' },
+  { id: 'aff-patience-08', theme: 'patience', text: 'I do not have to rush the work that only time can do.' },
+  { id: 'aff-patience-09', theme: 'patience', text: 'Being near the broken-hearted teaches me to be patient with hurt.' },
+  { id: 'aff-patience-10', theme: 'patience', text: 'I can extend the same grace to my slow places that I give to others.' },
+  { id: 'aff-patience-11', theme: 'patience', text: 'Strength is often restored while I am still.' },
+  { id: 'aff-patience-12', theme: 'patience', text: 'There is a right time for almost everything, and I do not control the clock.' },
+  { id: 'aff-patience-13', theme: 'patience', text: 'I can ask for help to wait well; I do not have to do it alone.' },
+  { id: 'aff-patience-14', theme: 'patience', text: 'Small faithful steps, repeated, become a life I recognize.' },
+  { id: 'aff-patience-15', theme: 'patience', text: 'Today I will be as patient with myself as I would be with a seedling.' },
+];
