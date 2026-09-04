@@ -16,6 +16,7 @@ import type {
   GlimpseEntry,
   ProgressState,
   Quest,
+  QuestBonusCompletion,
   QuestCompletion,
   StreakState,
   UserProfile,
@@ -48,6 +49,13 @@ export interface AppState {
     completions: QuestCompletion[];
     /** Local date "YYYY-MM-DD" of the most recent quest completion. */
     lastQuestCompletionDate: string | null;
+    /**
+     * Phase 4b (§5 paid split): bonus (2nd daily) quest completions, one per
+     * paid user per local day. A DELIBERATELY SEPARATE ledger — bonus quests
+     * award XP only and must never count toward the daily loop, the streak,
+     * or the paywall trigger. Absent in pre-4b payloads → loaded as [].
+     */
+    bonusCompletions: QuestBonusCompletion[];
   };
   /** Affirmations the user has "saved to their day" (+5 XP). */
   savedAffirmationIds: string[];
@@ -89,7 +97,7 @@ export function defaultState(): AppState {
     profile: defaultProfile(),
     progress: { totalXp: 0, level: 1 },
     streak: { streakDays: 0, graceDaysMissed: 0, lastQuestDate: null },
-    quests: { completedQuestIds: [], completions: [], lastQuestCompletionDate: null },
+    quests: { completedQuestIds: [], completions: [], lastQuestCompletionDate: null, bonusCompletions: [] },
     savedAffirmationIds: [],
     glimpses: [],
     entitlements: { tier: 'free' },
