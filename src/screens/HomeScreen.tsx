@@ -38,7 +38,9 @@ import {
 import type { AppRouteParamList } from '../navigation/types';
 import type { Quest, Verse } from '../models/types';
 import {
+  displayLevel,
   levelFloorXp,
+  levelGate,
   levelTitleInfo,
   TOTAL_LEVELS,
   XP_AFFIRMATION,
@@ -48,6 +50,7 @@ import {
 } from '../progress/progress';
 import { loadState, saveAffirmation } from '../storage/store';
 import type { AppState } from '../storage/store';
+import { paywallSurface } from '../subscription/paywall';
 import { streakUi } from '../streaks/ui';
 import { badges, buttons, cards, colors, page, radii, spacing } from '../theme';
 import { friendlyDate, localDateString } from '../utils/daily';
@@ -76,7 +79,11 @@ function bodyFor(quest: Quest): string {
 
 /** XP meter: total XP, level badge, and progress toward the next level. */
 function LevelChip({ state }: { state: AppState }) {
-  const { totalXp, level } = state.progress;
+  const { totalXp } = state.progress;
+  // Phase 4a (§5/F4): free users hold at most level 5 — the meter shows the
+  // honest held level while XP keeps accruing (never reset, never faked).
+  const level = displayLevel(totalXp, state.entitlements.tier);
+  const gate = levelGate(totalXp, state.entitlements.tier);
   const floor = levelFloorXp(totalXp);
   const into = totalXp - floor;
   const pct = Math.min(100, Math.round((into / XP_PER_LEVEL) * 100));
@@ -97,7 +104,9 @@ function LevelChip({ state }: { state: AppState }) {
         <View style={[styles.meterFill, { width: `${pct}%` }]} />
       </View>
       <Text style={styles.levelHint}>
-        {into}/{XP_PER_LEVEL} XP to Level {level + 1} · {TOTAL_LEVELS - level} levels to the top
+        {gate.gated
+          ? `${totalXp} XP and growing — levels 6–20 are part of Calm Quest+, your XP is safe.`
+          : `${into}/${XP_PER_LEVEL} XP to Level ${level + 1} · ${TOTAL_LEVELS - level} levels to the top`}
       </Text>
     </View>
   );
@@ -269,6 +278,12 @@ export default function HomeScreen() {
     }, []),
   );
 
+  // Phase 4a (Flow E): after a decline, no modal re-nag for 7 days; from day
+  // 7 the small "Growth" header button re-surfaces the paywall — dismissible,
+  // never blocking content, no guilt copy. Derived fresh on every focus.
+  const showGrowthButton =
+    !!state && paywallSurface(state, today, false) === 'growth';
+
   const quest = pickToday(quests, today);
   const affirmation = pickToday(affirmations, today);
   const prompt = pickToday(prompts, today);
@@ -302,6 +317,17 @@ export default function HomeScreen() {
           <Text style={styles.headline}>Today's quest</Text>
         </View>
         {state ? <StreakChip state={state} /> : null}
+        {/* Phase 4a: the small, dismissible Growth re-surface (day 7+). */}
+        {showGrowthButton ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Calm Quest+ — more ways to grow"
+            onPress={() => navigation.navigate('Paywall', { source: 'growth' })}
+            style={({ pressed }) => [styles.growthBtn, pressed && styles.pressed]}
+          >
+            <Text style={styles.growthText}>Growth</Text>
+          </Pressable>
+        ) : null}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Settings — daily gentle reminder"
@@ -391,6 +417,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: spacing.xs,
+  },
+  growthBtn: {
+    borderWidth: 1.5,
+    borderColor: colors.gold,
+    borderRadius: radii.pill,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: colors.white,
+  },
+  growthText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.goldDeep,
   },
   gearText: {
     fontSize: 22,

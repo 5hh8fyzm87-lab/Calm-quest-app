@@ -38,9 +38,10 @@ import {
 } from '../content';
 import type { AppRouteParamList } from '../navigation/types';
 import type { Quest, Verse } from '../models/types';
-import { levelForXp, levelTitleInfo, TOTAL_LEVELS, XP_QUEST } from '../progress/progress';
+import { levelForXp, levelTitleInfo, FREE_LEVELS, TOTAL_LEVELS, XP_QUEST } from '../progress/progress';
 import { completeQuest, loadState } from '../storage/store';
 import type { AppState } from '../storage/store';
+import { paywallSurface } from '../subscription/paywall';
 import { badges, buttons, cards, colors, page, radii, spacing } from '../theme';
 import { localDateString } from '../utils/daily';
 
@@ -89,6 +90,48 @@ function LevelUpCard({
 }
 
 // ---------------------------------------------------------------------------
+// Paid-level gate (Phase 4a, §5/F4) — honest card when a free user's XP
+// crosses into level 6+: the level isn't granted, nothing is lost, and the
+// next step is a calm choice (see Calm Quest+ / keep going free).
+// ---------------------------------------------------------------------------
+
+function LevelGateCard({
+  onSeePlus,
+  onDismiss,
+}: {
+  onSeePlus: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <View style={styles.levelCard}>
+      <View style={[badges.chip, badges.gold, styles.levelBadge]}>
+        <Text style={[badges.chipText, badges.goldText]}>LEVEL 6</Text>
+      </View>
+      <Text style={styles.levelTitle}>That level is part of Calm Quest+</Text>
+      <Text style={styles.levelBlessing}>
+        Your XP is safe and keeps counting — it's all yours the moment you step
+        through. Levels 6–20 come with Calm Quest+; levels 1–5 stay free,
+        always.
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onSeePlus}
+        style={({ pressed }) => [buttons.primary, styles.gateBtn, pressed && styles.pressed]}
+      >
+        <Text style={buttons.primaryText}>See what Calm Quest+ includes</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onDismiss}
+        style={({ pressed }) => [buttons.ghost, pressed && styles.pressed]}
+      >
+        <Text style={buttons.ghostText}>Keep going free</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Quest completion card (Flow B step 5) — shown after the Completed tap
 // ---------------------------------------------------------------------------
 
@@ -97,12 +140,17 @@ function QuestCompleteCard({
   streakDays,
   level,
   leveledUp,
+  levelGated,
+  onSeePlus,
   onDone,
 }: {
   xpGained: number;
   streakDays: number;
   level: number;
   leveledUp: boolean;
+  /** Phase 4a: XP crossed into L6+ while tier is free — honest gate, not a level-up. */
+  levelGated: boolean;
+  onSeePlus: () => void;
   onDone: () => void;
 }) {
   return (
@@ -112,7 +160,9 @@ function QuestCompleteCard({
       <Text style={styles.doneCopy}>
         +{xpGained} XP · Day {streakDays} secured — whenever you're ready
       </Text>
-      {leveledUp ? (
+      {levelGated ? (
+        <LevelGateCard onSeePlus={onSeePlus} onDismiss={onDone} />
+      ) : leveledUp ? (
         <LevelUpCard level={level} onDismiss={onDone} />
       ) : (
         <Pressable
@@ -173,6 +223,10 @@ export default function QuestScreen({ route }: { route: { params: { questId: str
   // Pause timer countdown.
   const [secondsLeft, setSecondsLeft] = useState(0);
 
+  // Phase 4a (Flow E): the one-time paywall is queued behind the completion
+  // card — it presents when the user leaves this screen, never over it.
+  const [pendingPaywall, setPendingPaywall] = useState(false);
+
   // Completion results (XP boundary crossing decides the celebration card).
   const [done, setDone] = useState(false);
   const [result, setResult] = useState<{
@@ -181,6 +235,7 @@ export default function QuestScreen({ route }: { route: { params: { questId: str
     streakDays: number;
     level: number;
     leveledUp: boolean;
+    levelGated: boolean;
   } | null>(null);
   const busyRef = useRef(false);
   const startXpRef = useRef<number | null>(null);
@@ -258,15 +313,33 @@ export default function QuestScreen({ route }: { route: { params: { questId: str
         navigation.goBack();
         return;
       }
-      const leveledUp = levelForXp(before) < next.progress.level;
+      // Phase 4a level gating (§5/F4): the RAW level crossed into L6+ while
+      // tier is free. The persisted level is already capped (completeQuest
+      // stores displayLevel); this flag just swaps the celebration for the
+      // honest gate card. XP itself is untouched — no fake progress loss.
+      const rawBefore = levelForXp(before);
+      const rawAfter = levelForXp(next.progress.totalXp);
+      // The only raw-increase that isn't a real display level-up: the free
+      // cap (raw went 5→6+ while the held level stayed ≤5).
+      const levelGated = rawBefore < rawAfter && next.progress.level <= FREE_LEVELS && rawAfter > FREE_LEVELS;
+      const leveledUp = !levelGated && rawBefore < rawAfter;
       setResult({
         xpGained: XP_QUEST,
         totalXp: next.progress.totalXp,
         streakDays: next.streak.streakDays,
         level: next.progress.level,
         leveledUp,
+        levelGated,
       });
       setDone(true);
+
+      // Phase 4a (Flow E): the one-time paywall fires exactly after the 3rd
+      // completed loop, for a free user who has never seen it. Evaluated on
+      // the persisted post-completion state; it presents AFTER the completion
+      // card is dismissed (never covering the celebration).
+      if (paywallSurface(next, today, true) === 'auto') {
+        setPendingPaywall(true);
+      }
     } catch {
       Alert.alert(
         'Could not save your progress',
@@ -275,6 +348,16 @@ export default function QuestScreen({ route }: { route: { params: { questId: str
     } finally {
       busyRef.current = false;
     }
+  }
+
+  /** Leave the screen; route to the queued paywall first, if the 3rd loop queued it. */
+  function leaveAfterCompletion() {
+    if (pendingPaywall) {
+      setPendingPaywall(false);
+      navigation.navigate('Paywall', { source: 'auto' });
+      return;
+    }
+    navigation.goBack();
   }
 
   return (
@@ -299,7 +382,9 @@ export default function QuestScreen({ route }: { route: { params: { questId: str
           streakDays={result.streakDays}
           level={result.level}
           leveledUp={result.leveledUp}
-          onDone={() => navigation.goBack()}
+          levelGated={result.levelGated}
+          onSeePlus={() => navigation.navigate('Paywall', { source: 'growth' })}
+          onDone={leaveAfterCompletion}
         />
       ) : (
         <View style={[cards.card, styles.bodyCard]}>
@@ -684,6 +769,10 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: colors.inkSoft,
     textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  gateBtn: {
+    alignSelf: 'stretch',
     marginBottom: spacing.sm,
   },
   pressed: {
