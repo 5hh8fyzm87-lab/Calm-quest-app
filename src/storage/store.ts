@@ -16,6 +16,7 @@ import type {
   GlimpseEntry,
   ProgressState,
   Quest,
+  QuestBonusCompletion,
   QuestCompletion,
   StreakState,
   UserProfile,
@@ -48,6 +49,13 @@ export interface AppState {
     completions: QuestCompletion[];
     /** Local date "YYYY-MM-DD" of the most recent quest completion. */
     lastQuestCompletionDate: string | null;
+    /**
+     * Phase 4b (§5 paid split): bonus (2nd daily) quest completions, one per
+     * paid user per local day. A DELIBERATELY SEPARATE ledger — bonus quests
+     * award XP only and must never count toward the daily loop, the streak,
+     * or the paywall trigger. Absent in pre-4b payloads → loaded as [].
+     */
+    bonusCompletions: QuestBonusCompletion[];
   };
   /** Affirmations the user has "saved to their day" (+5 XP). */
   savedAffirmationIds: string[];
@@ -89,7 +97,7 @@ export function defaultState(): AppState {
     profile: defaultProfile(),
     progress: { totalXp: 0, level: 1 },
     streak: { streakDays: 0, graceDaysMissed: 0, lastQuestDate: null },
-    quests: { completedQuestIds: [], completions: [], lastQuestCompletionDate: null },
+    quests: { completedQuestIds: [], completions: [], lastQuestCompletionDate: null, bonusCompletions: [] },
     savedAffirmationIds: [],
     glimpses: [],
     entitlements: { tier: 'free' },
@@ -134,6 +142,12 @@ export async function loadState(): Promise<AppState> {
             ?.lastQuestCompletionDate ??
           (data as { lastQuestCompletionDate?: string | null }).lastQuestCompletionDate ??
           base.quests.lastQuestCompletionDate,
+        // Phase 4b: pre-4b payloads have no bonusCompletions → []. Also
+        // tolerates a junk non-array value (hand-edited payload) the spread
+        // above would otherwise carry through.
+        bonusCompletions: Array.isArray(data.quests?.bonusCompletions)
+          ? data.quests.bonusCompletions
+          : base.quests.bonusCompletions,
       },
       savedAffirmationIds: data.savedAffirmationIds ?? base.savedAffirmationIds,
       glimpses: data.glimpses ?? base.glimpses,
@@ -273,22 +287,78 @@ export function glimpseForDate(state: AppState, date: string): GlimpseEntry | un
 
 /**
  * Record a completed Gratitude Glimpse: archive the entry and award +20 XP
- * (F3/F4). One credit per local day — a same-day re-completion is a no-op
- * returning `null`, so XP can never double-credit. Level recomputes from
- * totalXp. Persists via `saveState`; callers own the returned state.
+ * (F3/F4). ONE credit per local day for the free tier; Calm Quest+ is
+ * unlimited (Phase 4b §5), so a paid user's same-day glimpse also archives
+ * and credits — every paid entry gets a unique id (`glimpse-<date>-n`),
+ * never a fabricated or colliding one. Free same-day re-completions stay a
+ * no-op returning `null`, so the free cap can never double-credit. Level
+ * recomputes from totalXp. Persists via `saveState`; callers own the state.
  */
 export async function saveGlimpse(
   state: AppState,
   entry: GlimpseEntry,
 ): Promise<AppState | null> {
-  if (state.glimpses.some((g) => g.date === entry.date)) return null;
+  const paid = state.entitlements.tier === 'paid';
+  if (!paid && state.glimpses.some((g) => g.date === entry.date)) return null;
   const totalXp = state.progress.totalXp + XP_GLIMPSE;
   const next: AppState = {
     ...state,
-    glimpses: [...state.glimpses, entry],
+    glimpses: [
+      ...state.glimpses,
+      paid ? { ...entry, id: `glimpse-${entry.date}-${state.glimpses.length + 1}` } : entry,
+    ],
     progress: {
       totalXp,
       // Phase 4a: same tier gate — XP accrues, level holds at ≤5 while free.
+      level: displayLevel(totalXp, state.entitlements.tier),
+    },
+  };
+  await saveState(next);
+  return next;
+}
+
+// ---------------------------------------------------------------------------
+// Bonus (2nd daily) quest — Phase 4b (§5 paid feature). XP reward ONLY.
+// ---------------------------------------------------------------------------
+
+/**
+ * Record a completed BONUS quest (the paid user's optional 2nd daily quest):
+ * append to the dedicated `bonusCompletions` ledger and award +50 XP via the
+ * SAME XP path as daily quests (XP_QUEST + the tier-gated displayLevel).
+ *
+ * THE INVARIANT (documented decision, spec §5): a bonus quest never counts
+ * as the daily loop. It must NOT touch:
+ *   - `completions` / `lastQuestCompletionDate` (the daily-loop ledger that
+ *     drives paywall placement and the one-per-day rule),
+ *   - the streak (`streakDays`, `graceDaysMissed`, `lastQuestDate`),
+ *   - the paywall trigger (loopsCompleted derives from completions.length,
+ *     and bonus rows never enter that array).
+ * The ledger is deliberately separate (see QuestBonusCompletion) so this
+ * invariant is structural, not conventional.
+ *
+ * Guards: free tier → rejected (returns null, nothing persisted); a bonus
+ * already recorded today → no-op (null). The caller resolves the quest from
+ * the bundle; only its id is recorded. Persists via `saveState`; callers
+ * own the returned state.
+ */
+export async function completeBonusQuest(
+  state: AppState,
+  quest: Quest,
+  today: string,
+): Promise<AppState | null> {
+  if (state.entitlements.tier !== 'paid') return null;
+  if ((state.quests.bonusCompletions ?? []).some((c) => c.date === today)) return null;
+  const totalXp = state.progress.totalXp + XP_QUEST;
+  const next: AppState = {
+    ...state,
+    quests: {
+      ...state.quests,
+      bonusCompletions: [...(state.quests.bonusCompletions ?? []), { date: today, questId: quest.id }],
+    },
+    progress: {
+      totalXp,
+      // Same tier gate as every other award — a free user can't reach this
+      // path anyway, and a paid user's level is uncapped.
       level: displayLevel(totalXp, state.entitlements.tier),
     },
   };

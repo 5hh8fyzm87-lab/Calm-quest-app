@@ -132,6 +132,24 @@ export interface QuestCompletion {
   questId: string;
 }
 
+/**
+ * A bonus (2nd daily) quest completion record (§5 paid feature — Phase 4b).
+ *
+ * Deliberately SEPARATE from QuestCompletion: the one-per-day loop flag
+ * (`lastQuestCompletionDate` + `completions`) is the full daily-loop ledger
+ * that drives streaks and paywall placement. A bonus quest is an XP reward
+ * ONLY — it must never credit the streak, advance the daily loop, or move
+ * the paywall trigger. Keeping a dedicated ledger with its own date makes
+ * that invariant structural: bonus completions can never be counted as a
+ * daily loop because they never enter the daily-loop collections.
+ */
+export interface QuestBonusCompletion {
+  /** Local date "YYYY-MM-DD" the bonus quest was completed. */
+  date: string;
+  /** The bonus quest that was completed that day. */
+  questId: string;
+}
+
 // ---------------------------------------------------------------------------
 // Streak (§2 Flow C, §3 F5 — grace-centered, never breaks)
 // ---------------------------------------------------------------------------

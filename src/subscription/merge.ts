@@ -29,6 +29,8 @@ import { levelForXp } from '../progress/progress';
  *  - glimpses: UNION by entry id (guest entries the account lacks are added);
  *  - affirmations: union of saved ids (same "nothing the guest did is lost" principle);
  *  - completed quest ids: union; completions history: union by (date, questId);
+ *    bonus completions (Phase 4b): union in their OWN ledger by (date,
+ *    questId) — a bonus quest can never become a daily loop via a merge;
  *  - lastQuestCompletionDate: the later of the two (drives next-day rotation);
  *  - paywallSeenAt: the earlier stamp wins (a user who already declined the
  *    paywall must not be re-nagged by a merge);
@@ -48,6 +50,23 @@ export function mergeGuestState(guest: AppState, account: AppState): AppState {
     const key = `${c.date}|${c.questId}`;
     if (seen.has(key)) return false;
     seen.add(key);
+    return true;
+  });
+
+  // Union of BONUS completions (Phase 4b) by (date, questId) — the guest's
+  // earned bonus rows survive account creation, same "nothing lost" rule.
+  // They stay in their own ledger: a merge can never turn a bonus quest into
+  // a daily loop (the completions union above never reads this ledger).
+  // `?? []` tolerates pre-4b snapshots (remote or fixture) that lack the
+  // field — same forward-compatibility contract as loadState.
+  const bonusSeen = new Set<string>();
+  const bonusCompletions = [
+    ...(account.quests.bonusCompletions ?? []),
+    ...(guest.quests.bonusCompletions ?? []),
+  ].filter((c) => {
+    const key = `${c.date}|${c.questId}`;
+    if (bonusSeen.has(key)) return false;
+    bonusSeen.add(key);
     return true;
   });
 
@@ -83,6 +102,7 @@ export function mergeGuestState(guest: AppState, account: AppState): AppState {
       completedQuestIds: Array.from(new Set([...account.quests.completedQuestIds, ...guest.quests.completedQuestIds])),
       completions,
       lastQuestCompletionDate: lastDate ?? base.quests.lastQuestCompletionDate,
+      bonusCompletions,
     },
     savedAffirmationIds: Array.from(new Set([...account.savedAffirmationIds, ...guest.savedAffirmationIds])),
     glimpses,

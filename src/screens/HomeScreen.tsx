@@ -36,7 +36,7 @@ import {
   verses,
 } from '../content';
 import type { AppRouteParamList } from '../navigation/types';
-import type { Quest, Verse } from '../models/types';
+import type { Quest, QuestTheme, Verse } from '../models/types';
 import {
   displayLevel,
   levelFloorXp,
@@ -48,8 +48,16 @@ import {
   XP_PER_LEVEL,
   XP_QUEST,
 } from '../progress/progress';
-import { loadState, saveAffirmation } from '../storage/store';
+import { completeBonusQuest, loadState, saveAffirmation } from '../storage/store';
 import type { AppState } from '../storage/store';
+import {
+  bonusQuestAvailable,
+  canBrowseThemes,
+  pickBonusQuest,
+  themeQuestCounts,
+  THEME_ORDER,
+  visibleThemes,
+} from '../subscription/gates';
 import { paywallSurface } from '../subscription/paywall';
 import { streakUi } from '../streaks/ui';
 import { badges, buttons, cards, colors, page, radii, spacing } from '../theme';
@@ -165,6 +173,61 @@ function QuestCard({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Phase 4b (§5): bonus (2nd daily) quest — paid only. The completion path is
+// store.completeBonusQuest, which appends to the dedicated bonusCompletions
+// ledger and awards +50 XP, and NEVER touches completions /
+// lastQuestCompletionDate / streak / paywall trigger. The card's copy says
+// exactly that: extra XP, never a second streak credit.
+// ---------------------------------------------------------------------------
+
+function BonusQuestCard({
+  quest,
+  onComplete,
+  busy,
+}: {
+  quest: Quest;
+  onComplete: () => void;
+  busy: boolean;
+}) {
+  const verse = verseFor(quest.verseId);
+  return (
+    <View style={[cards.card, styles.bonusCard]}>
+      <View style={styles.chipRow}>
+        <View style={[badges.chip, badges.gold]}>
+          <Text style={[badges.chipText, badges.goldText]}>BONUS QUEST</Text>
+        </View>
+        <View style={[badges.chip, badges.sand]}>
+          <Text style={[badges.chipText, badges.sandText]}>+{XP_QUEST} XP</Text>
+        </View>
+      </View>
+      <Text style={cards.title}>{quest.title}</Text>
+      <Text style={[cards.subtitle, styles.body]}>{bodyFor(quest)}</Text>
+      {verse ? (
+        <View style={styles.verseBox}>
+          <Text style={styles.verseText}>{verse.text}</Text>
+          <Text style={styles.verseRef}>
+            {verse.reference} · {verse.translation}
+          </Text>
+        </View>
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ disabled: busy }}
+        disabled={busy}
+        onPress={onComplete}
+        style={({ pressed }) => [buttons.primary, pressed && styles.pressed]}
+      >
+        <Text style={buttons.primaryText}>Complete · +{XP_QUEST} XP</Text>
+      </Pressable>
+      <Text style={[cards.small, styles.xpHint]}>
+        A little extra — it adds XP only, and never touches your daily loop or
+        streak.
+      </Text>
+    </View>
+  );
+}
+
 function AffirmationCard({
   text,
   id,
@@ -259,10 +322,83 @@ function StreakChip({ state }: { state: AppState }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Phase 4b (S1 theme peek): read-only preview for everyone, full library for
+// Calm Quest+. Free users see only today's quest theme (the daily quest is
+// NEVER gated — removing it from view would block play); paid users see all
+// five themes with the library peek. One calm Growth link for free — no
+// guilt, no lock icons, no dark patterns.
+// ---------------------------------------------------------------------------
+
+function ThemesCard({
+  themes,
+  browsing,
+  themeCounts,
+  onSeePlus,
+}: {
+  themes: QuestTheme[];
+  browsing: boolean;
+  themeCounts: Record<QuestTheme, number> | null;
+  onSeePlus: () => void;
+}) {
+  return (
+    <View style={[cards.card, styles.themesCard]}>
+      <View style={styles.chipRow}>
+        <View style={[badges.chip, badges.sand]}>
+          <Text style={[badges.chipText, badges.sandText]}>THEMES</Text>
+        </View>
+      </View>
+      <Text style={cards.title}>Five themes, one at a time</Text>
+      <Text style={[cards.subtitle, styles.body]}>
+        {browsing
+          ? 'Your library, by theme — each one holds its own quests.'
+          : 'Each day brings one theme. Calm Quest+ opens all five, any day.'}
+      </Text>
+      <View style={styles.themeGrid}>
+        {THEME_ORDER.map((t) => {
+          const visible = themes.includes(t);
+          const count = themeCounts ? themeCounts[t] : null;
+          return (
+            <View
+              key={t}
+              style={[styles.themeRow, !visible && styles.themeRowLocked]}
+            >
+              <Text
+                style={[styles.themeName, !visible && styles.themeNameLocked]}
+                accessibilityLabel={visible ? `${THEME_LABELS[t]}, available` : undefined}
+              >
+                {THEME_LABELS[t]}
+              </Text>
+              {visible ? (
+                <Text style={styles.themeCount}>
+                  {count != null ? `${count} quest${count === 1 ? '' : 's'}` : 'today'}
+                </Text>
+              ) : (
+                <Text style={styles.themeCountLocked}>with Calm Quest+</Text>
+              )}
+            </View>
+          );
+        })}
+      </View>
+      {!browsing ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onSeePlus}
+          style={({ pressed }) => [buttons.ghost, styles.themeCta, pressed && styles.pressed]}
+        >
+          <Text style={buttons.ghostText}>See what Calm Quest+ includes</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 export default function HomeScreen() {
   const navigation = useNavigation<Nav>();
   const today = localDateString();
   const [state, setState] = useState<AppState | null>(null);
+  // Phase 4b: brief lock while the bonus completion persists (no double-tap).
+  const [bonusBusy, setBonusBusy] = useState(false);
 
   // Reload persisted state whenever the screen gains focus — keeps the
   // completed state / level chip fresh after the Quest screen saves.
@@ -292,6 +428,20 @@ export default function HomeScreen() {
   const questDone = !!state && state.quests.lastQuestCompletionDate === today;
   const affirmationSaved = !!state && !!affirmation && state.savedAffirmationIds.includes(affirmation.id);
 
+  // -----------------------------------------------------------------------
+  // Phase 4b (§5 + S1): paid-only surfaces, all derived at interaction time.
+  //  - Bonus (2nd daily) quest: paid only, one per day, +50 XP, never a loop
+  //    credit. Free users never see an usable affordance — the gate is the
+  //    data (`bonusQuestAvailable` is false for free), not a hidden button.
+  //  - Themes (S1): paid sees all five themes + the library peek; free sees
+  //    only today's quest theme. The daily quest itself is never gated.
+  // -----------------------------------------------------------------------
+  const bonusQuest =
+    state && bonusQuestAvailable(state, today) ? pickBonusQuest(state, today) : undefined;
+  const themes = state ? visibleThemes(state, today) : [];
+  const browsingThemes = !!state && canBrowseThemes(state);
+  const themeCounts = browsingThemes ? themeQuestCounts() : null;
+
   async function saveAffirm() {
     if (!state || !affirmation || affirmationSaved) return;
     try {
@@ -302,6 +452,29 @@ export default function HomeScreen() {
         'Could not save your affirmation',
         'It is stored on this device — please try again.',
       );
+    }
+  }
+
+  /**
+   * Phase 4b (§5): complete the paid bonus quest. Routed through
+   * store.completeBonusQuest — the ONLY path that writes bonusCompletions —
+   * so the XP award matches daily quests (+50, tier-gated level) while the
+   * daily-loop ledger, streak, and paywall trigger are structurally untouched.
+   * On null (cap met, free tier, or race) the card simply re-derives away.
+   */
+  async function finishBonusQuest() {
+    if (!state || !bonusQuest || bonusBusy) return;
+    setBonusBusy(true);
+    try {
+      const next = await completeBonusQuest(state, bonusQuest, today);
+      setState(next ?? state);
+    } catch {
+      Alert.alert(
+        'Could not save your bonus quest',
+        'It is stored on this device — please try again.',
+      );
+    } finally {
+      setBonusBusy(false);
     }
   }
 
@@ -350,6 +523,17 @@ export default function HomeScreen() {
         <Text style={cards.subtitle}>Quest library empty — nothing to show today.</Text>
       )}
 
+      {/* Phase 4b (§5): the paid bonus quest — renders ONLY when
+          bonusQuestAvailable (paid tier, none used today) yields a pick.
+          Free users never see an usable card: the gate is the data. */}
+      {bonusQuest ? (
+        <BonusQuestCard
+          quest={bonusQuest}
+          busy={bonusBusy}
+          onComplete={() => void finishBonusQuest()}
+        />
+      ) : null}
+
       {/* Affirmation of the day */}
       {affirmation ? (
         <AffirmationCard
@@ -382,6 +566,18 @@ export default function HomeScreen() {
             loop — tap to see today's prompt.
           </Text>
         </Pressable>
+      ) : null}
+
+      {/* Phase 4b (S1): the Themes peek — read-only for all, full library for
+          Calm Quest+. Free users see only today's theme; the daily quest is
+          never gated. Non-blocking: no lock icons, no guilt, one calm link. */}
+      {state ? (
+        <ThemesCard
+          themes={themes}
+          browsing={browsingThemes}
+          themeCounts={themeCounts}
+          onSeePlus={() => navigation.navigate('Paywall', { source: 'growth' })}
+        />
       ) : null}
 
       {/* Subtle Phase-1 proof footer */}
@@ -606,6 +802,57 @@ const styles = StyleSheet.create({
   },
   glimpseHint: {
     marginTop: spacing.xs,
+  },
+  bonusCard: {
+    borderWidth: 1.5,
+    borderColor: colors.gold,
+    backgroundColor: colors.white,
+  },
+  themesCard: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  themeGrid: {
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  themeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.creamDeep,
+    borderRadius: radii.md,
+    paddingVertical: 10,
+    paddingHorizontal: spacing.md,
+  },
+  themeRowLocked: {
+    backgroundColor: colors.cream,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  themeName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.ink,
+  },
+  themeNameLocked: {
+    color: colors.inkSoft,
+    fontWeight: '600',
+  },
+  themeCount: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.tealDeep,
+  },
+  themeCountLocked: {
+    fontSize: 12,
+    color: colors.inkSoft,
+    fontStyle: 'italic',
+  },
+  themeCta: {
+    marginTop: spacing.xs,
+    alignSelf: 'stretch',
   },
   streakChip: {
     alignSelf: 'center',

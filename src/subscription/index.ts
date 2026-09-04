@@ -13,3 +13,21 @@ export {
   isStubUnavailable,
 } from './service';
 export { StubSubscriptionService, subscriptionService } from './stub';
+
+// Phase 4b: gate derivations (§5 free/paid split + S1 theme peek) — pure.
+export {
+  FREE_DAILY_GLIMPSES,
+  THEME_ORDER,
+  glimpsesToday,
+  glimpseCapReached,
+  canBrowseThemes,
+  visibleThemes,
+  themeQuestCounts,
+  bonusQuestAvailable,
+  pickBonusQuest,
+} from './gates';
+
+// Phase 4b: AuthService seam (F10 continuation) — same one-file-swap pattern.
+export type { AuthService, AuthResult, AuthUnavailableReason } from './auth';
+export { isStubAuthUnavailable } from './auth';
+export { StubAuthService, authService } from './authStub';
