@@ -1,15 +1,18 @@
 {
   "expo": {
-    "name": "cq-tpl",
-    "slug": "cq-tpl",
+    "name": "Calm Quest",
+    "slug": "calm-quest",
+    "description": "Calm Quest — faith-first mindset training, made playful",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.questcalm.app"
     },
     "android": {
+      "package": "com.questcalm.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
