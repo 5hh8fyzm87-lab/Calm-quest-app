@@ -1,11 +1,16 @@
 /**
- * Calm Quest — typed navigation param list (Phase 2a).
+ * Calm Quest — typed navigation param list (Phase 2b).
  *
- * Native-stack root: Onboarding → Home. Home is where the daily loop lives;
- * quest/glimpse detail screens arrive in later phases.
+ * Native-stack root: Onboarding → Home → Quest (daily quest completion) and
+ * Home → Glimpse (Gratitude Glimpse mini-game; full screen is Phase 2c — this
+ * ships the entry point + a clean stub).
  */
 
 export type AppRouteParamList = {
   Onboarding: undefined;
   Home: undefined;
+  /** The daily quest: pass the quest id surfaced by Home's rotation. */
+  Quest: { questId: string };
+  /** Gratitude Glimpse: pass the prompt id chosen for today. */
+  Glimpse: { promptId: string };
 };

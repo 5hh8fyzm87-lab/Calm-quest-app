@@ -109,6 +109,30 @@ export interface UserProfile {
 }
 
 // ---------------------------------------------------------------------------
+// Progress: XP & levels (§3 F4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Growth progress, derived deterministically from `totalXp` in pure math
+ * (100 XP/level — see src/progress/progress.ts). Both fields are kept so
+ * future sync mirrors totals without re-deriving on every row.
+ */
+export interface ProgressState {
+  /** Lifetime XP — the only value that grows (rewards never decay). */
+  totalXp: number;
+  /** Snapshot of the level achieved at the last award (for re-render only). */
+  level: number;
+}
+
+/** A daily quest completion record (F1: one completion flag per local day). */
+export interface QuestCompletion {
+  /** Local date "YYYY-MM-DD" the quest was completed. */
+  date: string;
+  /** The quest that was completed that day. */
+  questId: string;
+}
+
+// ---------------------------------------------------------------------------
 // Streak (§2 Flow C, §3 F5 — grace-centered, never breaks)
 // ---------------------------------------------------------------------------
 
