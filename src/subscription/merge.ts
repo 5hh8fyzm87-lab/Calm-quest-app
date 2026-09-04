@@ -57,10 +57,12 @@ export function mergeGuestState(guest: AppState, account: AppState): AppState {
   // earned bonus rows survive account creation, same "nothing lost" rule.
   // They stay in their own ledger: a merge can never turn a bonus quest into
   // a daily loop (the completions union above never reads this ledger).
+  // `?? []` tolerates pre-4b snapshots (remote or fixture) that lack the
+  // field — same forward-compatibility contract as loadState.
   const bonusSeen = new Set<string>();
   const bonusCompletions = [
-    ...account.quests.bonusCompletions,
-    ...guest.quests.bonusCompletions,
+    ...(account.quests.bonusCompletions ?? []),
+    ...(guest.quests.bonusCompletions ?? []),
   ].filter((c) => {
     const key = `${c.date}|${c.questId}`;
     if (bonusSeen.has(key)) return false;
