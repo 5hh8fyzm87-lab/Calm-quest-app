@@ -50,6 +50,7 @@ export function defaultProfile(): UserProfile {
   return {
     id: 'local_user',
     path: 'christian',
+    onboarded: false,
     displayName: null,
     weekCheckIn: null,
     timeAvailable: null,
@@ -145,6 +146,31 @@ export function reconcileStreakForCompletion(
   }
 
   return applyCompletion(next, today);
+}
+
+// ---------------------------------------------------------------------------
+// Profile helpers — thin wrappers so callers never hand-roll rule wiring.
+// ---------------------------------------------------------------------------
+
+/**
+ * Mark onboarding complete and persist the chosen path. Used by Flow A's
+ * final CTA: profile ends up `{ path, onboarded: true }` so the root
+ * navigator routes straight to Home on the next launch.
+ */
+export async function setOnboarded(
+  state: AppState,
+  path: UserProfile['path'],
+): Promise<AppState> {
+  const next: AppState = {
+    ...state,
+    profile: {
+      ...state.profile,
+      path,
+      onboarded: true,
+    },
+  };
+  await saveState(next);
+  return next;
 }
 
 // ---------------------------------------------------------------------------

@@ -95,6 +95,8 @@ export type TimeAvailable = 'five_min' | 'ten_min' | 'more';
 export interface UserProfile {
   id: string;
   path: PathId;
+  /** True once onboarding completes (Flow A step 6) — routes to Home on launch. */
+  onboarded: boolean;
   /** Optional display name from onboarding ("for your quests"). */
   displayName: string | null;
   weekCheckIn: WeekCheckIn | null;

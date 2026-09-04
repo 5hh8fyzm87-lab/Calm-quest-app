@@ -26,6 +26,30 @@ export const STREAK_MESSAGES = {
     'Every beginning is a fresh start. Day 1 starts when you say today.',
 } as const;
 
+/** Union of the streak states a chip can render (matches Flow C tone rules). */
+export type StreakStatus = 'secured' | 'grace' | 'fresh';
+
+/**
+ * Derive the streak chip's status from persisted state alone (grace is a
+ * pure function of `graceDaysMissed` — no clock, per spec F5: state is
+ * reconciled on completion, and `graceDaysMissed` freezes at 0 when secured,
+ * 1–3 inside the window, or resets with the streak).
+ */
+export function streakStatus(state: StreakState): StreakStatus {
+  if (state.streakDays === 0) return 'fresh';
+  if (state.graceDaysMissed > 0) return 'grace';
+  return 'secured';
+}
+
+/** Pick the right STREAK_MESSAGES line for the current persisted state. */
+export function streakMessage(state: StreakState): string {
+  if (state.streakDays === 0) return STREAK_MESSAGES.freshStart();
+  const remaining = GRACE_WINDOW_DAYS - state.graceDaysMissed;
+  return state.graceDaysMissed > 0
+    ? STREAK_MESSAGES.grace(state.streakDays, remaining)
+    : STREAK_MESSAGES.secured(state.streakDays);
+}
+
 /**
  * Record a missed local day (no quest completed before end of day).
  *
