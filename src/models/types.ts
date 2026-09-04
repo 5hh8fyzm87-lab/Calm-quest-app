@@ -43,6 +43,12 @@ export interface Quest {
   actionPrompt?: string;
   /** Pause: silent stillness duration in seconds (60 in MVP). */
   durationSeconds?: number;
+  /**
+   * Pause: a one-line gentle prompt shown during the timer (Phase 6 content
+   * pack — every pause quest carries one; optional for backward compat with
+   * the Phase 1 sample bundle, which had none).
+   */
+  pausePrompt?: string;
   /** Write: one-line journal prompt. */
   journalPrompt?: string;
 }

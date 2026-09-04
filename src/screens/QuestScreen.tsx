@@ -255,8 +255,14 @@ export default function QuestScreen({ route }: { route: { params: { questId: str
     };
   }, [questId]);
 
+  // The daily-loop gate is the LOCAL DATE, matching the store's one-flag-per-
+  // day rule (completeQuest blocks on lastQuestCompletionDate). `completed-
+  // QuestIds` is a content-usage ledger, not a per-day gate: it must never
+  // block play — especially after a content-pass swap that reuses ids with
+  // NEW content (a Phase 1 user who completed q-gratitude-01 must still play
+  // the Phase 6 q-gratitude-01 on a fresh day).
   const quest =
-    state && !state.quests.completedQuestIds.includes(questId) ? questById(questId) : undefined;
+    state && state.quests.lastQuestCompletionDate !== today ? questById(questId) : undefined;
 
   // -------------------------------------------------------------------------
   // Pause timer: one interval, counts down, stops at zero. Finishing early is
@@ -461,7 +467,8 @@ export default function QuestScreen({ route }: { route: { params: { questId: str
           {quest.type === 'pause' ? (
             <>
               <Text style={styles.pauseCopy}>
-                {QUEST_TYPE_INTROS.pause} Close your eyes if it helps; just be still.
+                {quest.pausePrompt ??
+                  `${QUEST_TYPE_INTROS.pause} Close your eyes if it helps; just be still.`}
               </Text>
               <View style={styles.timerWrap}>
                 <Text accessibilityLabel={`${duration} seconds`} style={styles.timerText}>

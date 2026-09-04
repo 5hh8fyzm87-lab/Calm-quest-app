@@ -230,8 +230,9 @@ function entryFor(date, text) {
   check('canBrowseThemes: free false, paid true', canBrowseThemes(defaultState()) === false && canBrowseThemes(simulatedPaidState(defaultState())) === true);
   const counts = themeQuestCounts();
   check(
-    'themeQuestCounts reflects the real bundle (6 per theme, 30 total)',
-    Object.values(counts).reduce((a, b) => a + b, 0) === 30 && Object.values(counts).every((n) => n === 6),
+    'themeQuestCounts reflects the real bundle (60 quests; each of the 5 themes holds ≥ 12)',
+    Object.values(counts).reduce((a, b) => a + b, 0) === 60 &&
+      Object.values(counts).every((n) => n >= 12),
   );
 
   // -------------------------------------------------------------------------
