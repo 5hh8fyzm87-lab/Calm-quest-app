@@ -16,6 +16,11 @@ export type AppRouteParamList = {
   /** Settings (Phase 3, F9): gentle-reminder toggle + time picker. */
   Settings: undefined;
   /**
+   * PrivacyTerms (Phase 5, F9): in-app Privacy / Terms of Use, mirroring the
+   * site pages. `doc` selects which document to show.
+   */
+  PrivacyTerms: { doc: 'privacy' | 'terms' };
+  /**
    * Paywall (Phase 4a, Flow E): `auto` = the one-time post-3rd-loop modal;
    * `growth` = the small header re-surface after the 7-day quiet window.
    */

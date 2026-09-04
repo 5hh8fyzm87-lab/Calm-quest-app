@@ -35,6 +35,7 @@ import {
   THEME_LABELS,
   verses,
 } from '../content';
+import { analytics } from '../analytics';
 import type { AppRouteParamList } from '../navigation/types';
 import type { Quest, QuestTheme, Verse } from '../models/types';
 import {
@@ -446,6 +447,11 @@ export default function HomeScreen() {
     if (!state || !affirmation || affirmationSaved) return;
     try {
       const next = await saveAffirmation(state, affirmation);
+      // Phase 5 (S5): the bonus (+5 XP) was actually granted — track the save.
+      analytics.track('affirmation_saved', { affirmationId: affirmation.id });
+      if (next.progress.level > state.progress.level) {
+        analytics.track('level_up', { level: next.progress.level, totalXp: next.progress.totalXp });
+      }
       setState(next);
     } catch {
       Alert.alert(
@@ -467,6 +473,19 @@ export default function HomeScreen() {
     setBonusBusy(true);
     try {
       const next = await completeBonusQuest(state, bonusQuest, today);
+      if (next !== null) {
+        // Phase 5 (S5): a REAL bonus completion — the +50 XP and the dedicated
+        // ledger row both exist. The event carries the type + a loop flag so
+        // the KPI can tell bonus completions apart from the daily loop.
+        analytics.track('quest_completed', {
+          questId: bonusQuest.id,
+          type: bonusQuest.type,
+          bonus: true,
+        });
+        if (next.progress.level > state.progress.level) {
+          analytics.track('level_up', { level: next.progress.level, totalXp: next.progress.totalXp });
+        }
+      }
       setState(next ?? state);
     } catch {
       Alert.alert(

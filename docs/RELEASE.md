@@ -33,7 +33,7 @@ account exists.
 
 ## Pre-flight checks
 - `npm run typecheck` — exit 0.
-- `node scripts/proof-phase*.js` (phase2a → phase4b) — all pass.
+- `node scripts/proof-phase*.js` (phase2a → phase5) — all pass.
 - `npx expo export --platform ios` — success.
 - No `cq-tpl` / template leftovers in `src/` or `app.json` (identity is relocked).
 

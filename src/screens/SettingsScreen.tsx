@@ -23,6 +23,14 @@
  * reason 'stub', so restore says exactly "store not connected yet — nothing
  * to restore" (never fake success) and manage says the store setup is
  * coming soon. Same one-file-swap seam as the paywall.
+ *
+ * Phase 5 (§3 F9): sound on/off (persisted intent — no bundled audio plays in
+ * this MVP yet; the pref is ready to wire), Log out (only ever enabled when
+ * the AuthService seam isAvailable() — the stub keeps it an honest "coming
+ * soon" note, never a fake logout), Delete my data (REAL local wipe → fresh
+ * install → Onboarding; the GDPR-relevant in-app data note is honest about
+ * backend deletion arriving later), and in-app Privacy & Terms mirroring the
+ * site pages (/privacy, /terms).
  */
 
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -40,6 +48,7 @@ import {
   View,
 } from 'react-native';
 
+import { analytics } from '../analytics';
 import type { AppRouteParamList } from '../navigation/types';
 import {
   canDeliverReminders,
@@ -50,6 +59,7 @@ import {
 } from '../notifications/reminders';
 import { loadState, saveState } from '../storage/store';
 import type { AppState } from '../storage/store';
+import { authService } from '../subscription/authStub';
 import { subscriptionService } from '../subscription/stub';
 import { badges, buttons, cards, colors, page, radii, spacing } from '../theme';
 
@@ -85,21 +95,48 @@ const COPY = {
   manageStubTitle: 'Store setup coming soon',
   manageStubCopy:
     'Subscriptions will be managed in the App Store once the store connection is live. Nothing is billed today — there is no store to bill.',
+  // Phase 5 — sound, account, data, legal.
+  soundSection: 'SOUND',
+  soundOn: 'Sound on — gentle chimes',
+  soundOff: 'Sound off — quiet mode',
+  soundSub:
+    'A sound preference for the gentle chime in the pause quest and the reminder. No bundled sound plays in this MVP yet — this setting is saved and ready to wire the moment audio lands.',
+  accountSection: 'ACCOUNT & DATA',
+  signInNote:
+    'Sign-in comes with Calm Quest+ accounts — arriving with the real backend. Until then you travel anonymously; everything stays on this device.',
+  logoutRow: 'Log out',
+  loggedOutNote: 'No signed-in account to log out of — sign-in is coming soon.',
+  deleteDataRow: 'Delete my data',
+  deleteDataSub:
+    'Erases everything the app has stored on this device: quests, affirmations, glimpses, streak, progress, and all settings. Server-side deletion arrives with the real backend — until then, this covers all in-app data.',
+  deleteConfirmTitle: 'Delete all your data?',
+  deleteConfirmCopy:
+    'This is irreversible. Every quest, glimpse, streak, and point of progress on this device will be erased, and Calm Quest will start fresh at onboarding. Nothing is sent anywhere — this only clears your device.',
+  deleteConfirmCancel: 'Keep my data',
+  deleteConfirmConfirm: 'Delete everything',
+  deleteDoneTitle: 'Your data is deleted',
+  deleteDoneCopy:
+    'Everything this app stored on the device is gone. You\u2019ll start fresh at onboarding whenever you\u2019re ready. Server-side data deletion arrives with the real backend.',
+  legalSection: 'LEGAL',
+  privacyRow: 'Privacy',
+  termsRow: 'Terms of Use',
 };
 
 type Nav = NativeStackNavigationProp<AppRouteParamList, 'Settings'>;
 
-/** Reads the persisted reminder prefs + current OS permission (on focus). */
+/** Reads the persisted reminder prefs + OS permission + sound (on focus). */
 async function readPrefs(): Promise<{
   enabled: boolean;
   time: string | null;
   canDeliver: boolean;
+  soundEnabled: boolean;
 }> {
   const [state, permission] = await Promise.all([loadState(), canDeliverReminders()]);
   return {
     enabled: state.profile.reminderEnabled,
     time: state.profile.reminderTime,
     canDeliver: permission,
+    soundEnabled: state.profile.soundEnabled,
   };
 }
 
@@ -126,6 +163,13 @@ export default function SettingsScreen() {
   const [restoreNote, setRestoreNote] = useState<null | { title: string; copy: string }>(null);
   const [manageOpen, setManageOpen] = useState(false);
 
+  // Phase 5 — sound pref + honest account state (the auth seam's truth).
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  // Auth is a stub: isAvailable() is false, so the Log out row is shown only
+  // as an honest "coming with the real backend" note — NEVER a fake logout.
+  const [authAvailable, setAuthAvailable] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -136,10 +180,16 @@ export default function SettingsScreen() {
         setEnabled(p.enabled);
         setTime(p.time ?? '08:00');
         setCanDeliver(p.canDeliver);
+        setSoundEnabled(p.soundEnabled);
         // Phase 4b: the tier shown is the persisted snapshot — the only
         // writer is applyEntitlement (verified entitlements), so display is
         // always honest.
         setTier(s.entitlements.tier);
+        // Phase 5: ask the auth service — the stub answers false forever, so
+        // the Log out row can never fake a signed-out state.
+        void authService.isAvailable().then((avail) => {
+          if (active) setAuthAvailable(avail);
+        });
         // Reminder defaults ON (F7) — the first time the screen opens we ask
         // the OS once. Denial is handled kindly below; no retry loop.
         if (p.enabled && !p.canDeliver && !askedPermissionRef.current) {
@@ -237,6 +287,9 @@ export default function SettingsScreen() {
     if (restoring) return;
     setRestoring(true);
     setRestoreNote(null);
+    // Phase 5 (S5): instrument the restore attempt — the seam stays honest
+    // (the stub answers 'stub'), this only records that the user asked.
+    analytics.track('restore_requested', {});
     try {
       const result = await subscriptionService.restore();
       if (result.ok && result.value) {
@@ -253,6 +306,73 @@ export default function SettingsScreen() {
       setRestoreNote({ title: COPY.restoreStubTitle, copy: COPY.restoreStubCopy });
     } finally {
       setRestoring(false);
+    }
+  }
+
+  /**
+   * Phase 5 — sound on/off (F9). Persisted with the same store path as the
+   * reminder. MVP intent note: no bundled audio asset exists yet (the
+   * reminder is deliberately muted, the Pause chime is a Phase 6 sound-design
+   * item) — the preference is saved truthfully and ready to wire.
+   */
+  async function onSoundChange(value: boolean) {
+    setSoundEnabled(value);
+    try {
+      const state = await loadState();
+      const { setSoundPref } = await import('../storage/store');
+      const next = await setSoundPref(state, value);
+      setSoundEnabled(next.profile.soundEnabled);
+    } catch {
+      Alert.alert('Could not save your sound setting', COPY.saveError);
+    }
+  }
+
+  /**
+   * Phase 5 — Delete my data (F9, GDPR / App Store). REAL deletion: wipes the
+   * persisted app state (quests, affirmations, glimpses, streak, XP/level,
+   * prefs incl. reminder + sound, entitlements snapshot) so the app returns to
+   * a true fresh-install state, cancels the scheduled OS reminder, and the
+   * navigator routes to Onboarding as a new user. Honest: no server-side
+   * deletion is claimed — it arrives with the real backend.
+   */
+  function confirmDelete() {
+    if (deleting) return;
+    Alert.alert(COPY.deleteConfirmTitle, COPY.deleteConfirmCopy, [
+      { text: COPY.deleteConfirmCancel, style: 'cancel' },
+      { text: COPY.deleteConfirmConfirm, style: 'destructive', onPress: () => void runDelete() },
+    ]);
+  }
+
+  async function runDelete() {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      const { deleteAllData } = await import('../storage/store');
+      const fresh = await deleteAllData();
+      setDeleting(false);
+      Alert.alert(COPY.deleteDoneTitle, COPY.deleteDoneCopy, [
+        {
+          text: 'OK',
+          onPress: () => {
+            // Fresh-install state is persisted (profile.onboarded === false);
+            // reset the navigation stack so the very next screen IS
+            // Onboarding, exactly like a first launch.
+            navigation.reset({ index: 0, routes: [{ name: 'Onboarding' }] });
+          },
+        },
+      ]);
+      // Keep the component honest if the user dismisses the alert: reflect
+      // the fresh (deleted) state so no stale progress shows anywhere.
+      setTier(fresh.entitlements.tier);
+      setSoundEnabled(fresh.profile.soundEnabled);
+      setEnabled(fresh.profile.reminderEnabled);
+      setTime(fresh.profile.reminderTime ?? '08:00');
+    } catch {
+      setDeleting(false);
+      Alert.alert(
+        'Could not delete your data',
+        'Nothing was deleted — please try again. It is stored on this device.',
+      );
     }
   }
 
@@ -357,6 +477,30 @@ export default function SettingsScreen() {
         a day, grace holds your streak for you.
       </Text>
 
+      {/* Phase 5 (F9): sound on/off. Persisted intent — honestly labeled: no
+          bundled audio plays yet (the MVP pause quest is silent and the
+          reminder is muted), so this pref is saved and ready to wire. */}
+      <Text style={cards.label}>{COPY.soundSection}</Text>
+      <View style={[cards.card, styles.reminderCard]}>
+        <View style={styles.row}>
+          <View style={styles.rowText}>
+            <Text style={styles.rowTitle}>
+              {soundEnabled ? COPY.soundOn : COPY.soundOff}
+            </Text>
+            <Text style={styles.rowSub}>{COPY.soundSub}</Text>
+          </View>
+          <Switch
+            accessibilityRole="switch"
+            accessibilityLabel="Sound on or off"
+            accessibilityHint="Saved on this device. No bundled sound plays in this MVP yet."
+            value={soundEnabled}
+            onValueChange={(v) => void onSoundChange(v)}
+            trackColor={{ false: colors.sand, true: colors.teal }}
+            thumbColor={colors.white}
+          />
+        </View>
+      </View>
+
       {/* No upgrade, no purchases — grace is always free (F5/F7 guardrail). */}
       <View style={styles.finePrint}>
         <Text style={styles.finePrintText}>
@@ -415,6 +559,71 @@ export default function SettingsScreen() {
             <Text style={styles.plusNoteCopy}>{COPY.manageStubCopy}</Text>
           </View>
         ) : null}
+      </View>
+
+      {/* Phase 5 (F9): Account & Data — Log out only when a REAL auth service
+          exists (stub isAvailable() = false, so today this is the honest
+          "coming soon" note; NEVER a fabricated signed-out state). Delete my
+          data is REAL and local: it wipes every persisted byte and the app
+          starts fresh at Onboarding. */}
+      <Text style={cards.label}>{COPY.accountSection}</Text>
+      <Text style={styles.blurb}>{COPY.signInNote}</Text>
+      <View style={[cards.card, styles.reminderCard]}>
+        {authAvailable ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              // Real sign-out arrives with the real auth backend (Phase 6);
+              // the honest seam means this row only ever exists when there is
+              // an actual account to sign out of.
+            }}
+            style={({ pressed }) => [buttons.ghost, styles.plusBtn, pressed && styles.pressed]}
+          >
+            <Text style={buttons.ghostText}>{COPY.logoutRow}</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.logoutNoteBox}>
+            <Text style={styles.logoutNoteTitle}>{COPY.logoutRow}</Text>
+            <Text style={styles.logoutNoteCopy}>{COPY.loggedOutNote}</Text>
+          </View>
+        )}
+
+        <View style={styles.accountDivider} />
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: deleting }}
+          disabled={deleting}
+          onPress={confirmDelete}
+          style={({ pressed }) => [buttons.ghost, styles.deleteBtn, pressed && styles.pressed]}
+        >
+          <Text style={[buttons.ghostText, styles.deleteBtnText]}>
+            {deleting ? 'Deleting…' : COPY.deleteDataRow}
+          </Text>
+        </Pressable>
+        <Text style={styles.deleteSub}>{COPY.deleteDataSub}</Text>
+      </View>
+
+      {/* Phase 5 (F9): in-app Privacy & Terms — mirror of the site pages. */}
+      <Text style={cards.label}>{COPY.legalSection}</Text>
+      <View style={[cards.card, styles.reminderCard]}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => navigation.navigate('PrivacyTerms', { doc: 'privacy' })}
+          style={({ pressed }) => [styles.legalRow, pressed && styles.pressed]}
+        >
+          <Text style={styles.legalRowText}>{COPY.privacyRow}</Text>
+          <Text style={styles.legalChevron}>›</Text>
+        </Pressable>
+        <View style={styles.accountDivider} />
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => navigation.navigate('PrivacyTerms', { doc: 'terms' })}
+          style={({ pressed }) => [styles.legalRow, pressed && styles.pressed]}
+        >
+          <Text style={styles.legalRowText}>{COPY.termsRow}</Text>
+          <Text style={styles.legalChevron}>›</Text>
+        </Pressable>
       </View>
 
       {saved ? (
@@ -592,6 +801,54 @@ const styles = StyleSheet.create({
   plusNoteCopy: {
     fontSize: 13,
     lineHeight: 19,
+    color: colors.inkSoft,
+  },
+  logoutNoteBox: {
+    backgroundColor: colors.creamDeep,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    gap: 2,
+  },
+  logoutNoteTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.ink,
+  },
+  logoutNoteCopy: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.inkSoft,
+  },
+  accountDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.md,
+  },
+  deleteBtn: {
+    alignSelf: 'stretch',
+  },
+  deleteBtnText: {
+    color: colors.softCoral,
+  },
+  deleteSub: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.inkSoft,
+    marginTop: spacing.sm,
+  },
+  legalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+  },
+  legalRowText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.ink,
+  },
+  legalChevron: {
+    fontSize: 18,
     color: colors.inkSoft,
   },
   pressed: {

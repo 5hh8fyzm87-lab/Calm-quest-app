@@ -87,6 +87,10 @@ export function defaultProfile(): UserProfile {
     // preference. The Settings screen lets the user switch it off or re-time it.
     reminderEnabled: true,
     reminderTime: REMINDER_DEFAULT_TIME,
+    // Phase 5 (F9): sound default ON. A persisted intent — the reminder is
+    // deliberately muted today (no bundled audio asset; Phase 6 wires the
+    // chime/sound). Keeping the default ON matches the natural expectation.
+    soundEnabled: true,
     createdAt: new Date().toISOString(),
   };
 }
@@ -473,4 +477,72 @@ export function addDays(iso: string, n: number): string {
   const d = parseDate(iso);
   d.setDate(d.getDate() + n);
   return formatDate(d);
+}
+
+// ---------------------------------------------------------------------------
+// Settings prefs (Phase 5, feature spec §3 F9)
+// ---------------------------------------------------------------------------
+
+/**
+ * Persist the sound on/off preference (F9). Default ON; stored with the same
+ * profile prefs mechanism as the reminder. MVP note: this is a persisted
+ * INTENT — the reminder is deliberately muted and the Pause chime is a Phase 6
+ * audio-asset item, so nothing plays sound yet by design. The pref is
+ * loadState-visible and ready to wire the moment a sound asset exists.
+ */
+export async function setSoundPref(state: AppState, enabled: boolean): Promise<AppState> {
+  const next: AppState = {
+    ...state,
+    profile: {
+      ...state.profile,
+      soundEnabled: enabled,
+    },
+  };
+  await saveState(next);
+  return next;
+}
+
+// ---------------------------------------------------------------------------
+// True local data deletion (Phase 5, feature spec §3 F9 — GDPR / App Store
+// "Delete my data"). Local-first and honest: the MVP keeps everything on the
+// device, so wiping the persisted app state IS the user's data deletion. A
+// server-side GDPR deletion request arrives with the real backend (Phase 6);
+// until then this is complete for every byte the app stores.
+// ---------------------------------------------------------------------------
+
+/**
+ * PURE wipe: the single source of truth that "fresh install" means.
+ * Identity-forged equality with `defaultState()` (every field, no extras) is
+ * what makes a wipe provably complete and the onboarding route provably
+ * correct (RootNavigator boots on `profile.onboarded === false`).
+ *
+ * Deliberately does NOT touch the notification permission or the OS schedule
+ * (device-level concerns, not app data).
+ */
+export function resetAllState(): AppState {
+  return defaultState();
+}
+
+/**
+ * Persist the pure wipe and cancel the scheduled daily reminder so the OS
+ * never nudges a deleted user. Returns the fresh state (AppState consumers
+ * can setState it directly; RootNavigator will route to Onboarding on the
+ * next launch because profile.onboarded is false again).
+ *
+ * Honest wording used by the UI: everything the app stored on THIS device is
+ * gone. No server-side deletion is claimed — it arrives with the real backend.
+ */
+export async function deleteAllData(): Promise<AppState> {
+  const fresh = resetAllState();
+  await saveState(fresh);
+  // Best-effort (never throws to the caller): the OS schedule is device-level,
+  // not app data — but a deleted user should never receive a nudge. The
+  // notification permission itself stays with the OS (the user owns it).
+  try {
+    const { cancelReminder } = await import('../notifications/reminders');
+    await cancelReminder();
+  } catch {
+    // No reminder module in a headless/proof context — the wipe itself is done.
+  }
+  return fresh;
 }
