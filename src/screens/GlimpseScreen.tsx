@@ -11,6 +11,15 @@
  *
  * Guardrails: no medical claims, no guilt, no scarcity, no fake progress —
  * XP arrives only from a real Completed tap via `saveGlimpse`.
+ *
+ * Phase 4b (§5): the free tier gets ONE glimpse per local day — derived from
+ * the persisted ledger at interaction time (`glimpseCapReached`), so closing
+ * and reopening can never grant a second one. When the cap is reached the
+ * screen becomes a calm, honest note ("your one glimpse for today is
+ * complete") with a quiet Calm Quest+ invitation — no guilt, no mockery,
+ * tomorrow's free glimpse is never in question. Calm Quest+ is unlimited:
+ * a paid user can write another glimpse any time, and `saveGlimpse` archives
+ * each with a unique id.
  */
 
 import { useNavigation } from '@react-navigation/native';
@@ -34,6 +43,7 @@ import { levelForXp, levelTitleInfo, XP_GLIMPSE } from '../progress/progress';
 import { glimpseForDate, loadState, saveGlimpse } from '../storage/store';
 import type { AppState } from '../storage/store';
 import { paywallSurface } from '../subscription/paywall';
+import { glimpseCapReached } from '../subscription/gates';
 import { badges, buttons, cards, colors, page, radii, spacing } from '../theme';
 import { localDateString } from '../utils/daily';
 
@@ -170,6 +180,53 @@ function GlimpseCompleteCard({
 // Screen
 // ---------------------------------------------------------------------------
 
+/**
+ * Phase 4b (§5): the free glimpse cap, reached. Calm and honest — the day's
+ * glimpse is complete, nothing is wrong, tomorrow's is already waiting. The
+ * Calm Quest+ mention is a quiet invitation, never pressure (the brief's
+ * exact copy, lightly framed).
+ */
+function GlimpseCapCard({
+  entry,
+  onSeePlus,
+  onDone,
+}: {
+  entry: GlimpseEntry;
+  onSeePlus: () => void;
+  onDone: () => void;
+}) {
+  return (
+    <View style={[cards.card, styles.doneCard]}>
+      <Text style={styles.doneCheck}>✓</Text>
+      <Text style={styles.doneTitle}>Your one glimpse for today is complete.</Text>
+      <View style={styles.entryBox}>
+        <Text style={styles.entryText}>“{entry.text}”</Text>
+      </View>
+      <Text style={styles.keepsake}>
+        Saved to your glimpses. Come back tomorrow — your next glimpse will be
+        waiting.
+      </Text>
+      <Text style={styles.gateNote}>
+        Calm Quest+ gives you as many glimpses as you like, any day.
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onSeePlus}
+        style={({ pressed }) => [buttons.ghost, pressed && styles.pressed]}
+      >
+        <Text style={buttons.ghostText}>See what Calm Quest+ includes</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onDone}
+        style={({ pressed }) => [buttons.primary, styles.doneBtn, pressed && styles.pressed]}
+      >
+        <Text style={buttons.primaryText}>Back to today</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 export default function GlimpseScreen({ route }: { route: { params: { promptId: string } } }) {
   const navigation = useNavigation<Nav>();
   const { promptId } = route.params;
@@ -185,6 +242,10 @@ export default function GlimpseScreen({ route }: { route: { params: { promptId: 
   const [leveledUp, setLeveledUp] = useState(false);
   const [levelGated, setLevelGated] = useState(false);
   const [savedLevel, setSavedLevel] = useState(1);
+  // Phase 4b (§5): true when the FREE daily cap is reached — derived from the
+  // persisted ledger at load (and re-derived after any save), never from an
+  // in-memory flag, so close-and-reopen cannot grant another glimpse.
+  const [capReached, setCapReached] = useState(false);
   const busyRef = useRef(false);
   const startXpRef = useRef<number | null>(null);
   // Phase 4a (Flow E): one-time paywall, queued behind the completion card.
@@ -203,10 +264,19 @@ export default function GlimpseScreen({ route }: { route: { params: { promptId: 
       startXpRef.current = s.progress.totalXp;
       const existing = glimpseForDate(s, today);
       if (existing) {
-        // Already saved today: saved state, no re-award possible.
+        // Already saved today: saved state, no re-award possible for free.
         setSavedEntry(existing);
         setDone(true);
         setSavedLevel(s.progress.level);
+        // Phase 4b: for a free user this same-day return IS the cap state —
+        // their one glimpse is written. Derived from the persisted ledger,
+        // so close-and-reopen cannot conjure another. Paid users are past
+        // the cap by definition (unlimited) and get a "write another" card.
+        setCapReached(glimpseCapReached(s, today));
+      } else if (glimpseCapReached(s, today)) {
+        // Defensive: ledger says the free cap is met but no same-day entry
+        // resolved (should not happen — same source). Calm cap card, no game.
+        setCapReached(true);
       }
     });
     return () => {
@@ -254,12 +324,14 @@ export default function GlimpseScreen({ route }: { route: { params: { promptId: 
       };
       const next = await saveGlimpse(currentState, entry);
       if (next === null) {
-        // Saved elsewhere mid-session (defensive): show the archived entry.
+        // Free cap already met and saved elsewhere mid-session (defensive):
+        // show the archived entry. A paid user never lands here (unlimited).
         const existing = glimpseForDate(currentState, today);
         if (existing) {
           setSavedEntry(existing);
           setSavedLevel(currentState.progress.level);
           setDone(true);
+          setCapReached(glimpseCapReached(currentState, today));
         } else {
           navigation.goBack();
         }
@@ -295,8 +367,10 @@ export default function GlimpseScreen({ route }: { route: { params: { promptId: 
   }
 
   // Done view: a fresh completion shows the entry back with its +20 XP;
-  // a same-day return ("already saved") shows the archived entry with no
-  // re-award. Neither path can double-credit — saveGlimpse guards by date.
+  // a same-day return shows the archived entry — for a free user that IS the
+  // daily cap state (no re-award possible), for Calm Quest+ it carries a
+  // "write another" affordance (unlimited). Neither path can double-credit:
+  // saveGlimpse guards the free tier by date, and paid entries always append.
   /** Leave the screen; route to the queued paywall first, if the 3rd loop queued it. */
   function leaveAfterCompletion() {
     if (pendingPaywall) {
@@ -307,7 +381,42 @@ export default function GlimpseScreen({ route }: { route: { params: { promptId: 
     navigation.goBack();
   }
 
+  /** Phase 4b (§5, paid only): unlimited glimpses — reset to a fresh write. */
+  function writeAnother() {
+    setDone(false);
+    setSavedEntry(null);
+    setFreshSave(false);
+    setLeveledUp(false);
+    setLevelGated(false);
+    setCapReached(false);
+    setText('');
+    setElapsed(0);
+    // Fresh XP baseline so the next completion's level math is its own.
+    startXpRef.current = null;
+  }
+
   if (done && savedEntry) {
+    // Phase 4b (§5): the FREE cap state — the one glimpse for today is in the
+    // persisted ledger, so this screen shows the calm cap card (derived at
+    // interaction time; close-and-reopen cannot grant another). Paid is never
+    // capped, so it never reaches this branch.
+    if (capReached) {
+      return (
+        <ScrollView
+          style={page.screen}
+          contentContainerStyle={[page.content, styles.container]}
+        >
+          <View style={[badges.chip, badges.sage, styles.badge]}>
+            <Text style={[badges.chipText, badges.sageText]}>GRATITUDE GLIMPSE</Text>
+          </View>
+          <GlimpseCapCard
+            entry={savedEntry}
+            onSeePlus={() => navigation.navigate('Paywall', { source: 'growth' })}
+            onDone={() => navigation.goBack()}
+          />
+        </ScrollView>
+      );
+    }
     return (
       <ScrollView
         style={page.screen}
@@ -336,6 +445,19 @@ export default function GlimpseScreen({ route }: { route: { params: { promptId: 
             <Text style={styles.keepsake}>
               Saved to your glimpses. {keepsakeLine(today)}
             </Text>
+            {/* Phase 4b (§5): Calm Quest+ is unlimited — a paid user who
+                reopens today's glimpse can write another, any time. Free
+                users see no such affordance (their one glimpse is written;
+                the cap card handles their same-day state). */}
+            {currentState.entitlements.tier === 'paid' ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={writeAnother}
+                style={({ pressed }) => [buttons.ghost, styles.againBtn, pressed && styles.pressed]}
+              >
+                <Text style={buttons.ghostText}>Write another glimpse</Text>
+              </Pressable>
+            ) : null}
             <Pressable
               accessibilityRole="button"
               onPress={() => navigation.goBack()}
@@ -552,6 +674,10 @@ const styles = StyleSheet.create({
   },
   doneBtn: {
     marginTop: spacing.sm,
+    alignSelf: 'stretch',
+  },
+  againBtn: {
+    marginBottom: spacing.xs,
     alignSelf: 'stretch',
   },
   bootBox: {
