@@ -1,32 +1,42 @@
-# Calm Quest — iOS Release Checklist (MVP → App Store / TestFlight)
+# Release Checklist — Calm Quest (iOS, App Store)
 
-## Identity (locked Sep 2026)
-- App name: **Calm Quest**
-- Domain: **questcalm.com**
-- iOS bundle ID: **com.questcalm.app** (set in `app.json` → `expo.ios.bundleIdentifier`)
-- Android package (port later): **com.questcalm.app** (`app.json` → `expo.android.package`)
-- Expo slug: **calm-quest**
+Practical checklist for shipping the first build. Work the "Owner" items only after the
+internal identity lock (this repo, `app.json`) is merged and the owner's Apple Developer
+account exists.
 
-## App Store Connect (owner, after Apple Developer enrollment)
-1. Create the app record:
-   - Name: **Calm Quest**
-   - Bundle ID: **com.questcalm.app** (register it in Certificates, Identifiers & Profiles first)
-2. Create the two subscription products (exact IDs the code references):
-   - `calmquest_monthly` — $9.99/month
-   - `calmquest_yearly` — $59.99/year
-3. Enable the **7-day free trial** as an introductory offer on both (auto-converts at period end — the app already shows the plain-language pre-trial confirmation).
-4. Provide the usual listing assets: description, screenshots, privacy policy URL (on the site), subscription disclosure.
+## Locked identity (already in code — `app.json`)
+- App name (display): **Calm Quest**
+- Expo slug: `calm-quest`
+- iOS bundle ID: `com.questcalm.app` · Android package (planned): `com.questcalm.app`
+- Brand/domain: **questcalm.com** (owner purchasing; `$14` first yr / `~$47` renew)
+- Version: `1.0.0`
 
-## Real money wiring (code, after the above exists)
-- **`src/subscription/index.ts`** — swap the `StubSubscriptionService` for the real implementation (RevenueCat / `react-native-iap` + server-side receipt validation; products `calmquest_monthly` / `calmquest_yearly`).
-- **`src/subscription/authStub.ts`** — swap the `StubAuthService` for real auth (Supabase/Firebase + Sign in with Apple) once a backend is connected; `mergeGuestState` (F10) already exists in `src/subscription/merge.ts`.
-- Never flip `entitlements.tier` to `'paid'` without a verified store entitlement (spec F8 guard).
+## App Store Connect (Owner — needs Apple Developer account)
+1. Create app record: **Calm Quest**, bundle ID `com.questcalm.app`.
+2. Create subscription products (both with a **7-day free trial**):
+   - `calmquest_monthly` — **$9.99 / month**
+   - `calmquest_yearly` — **$59.99 / year** (≈ $5/mo, "Best value" anchor)
+3. Give the team: **Team ID** + confirmations of bundle ID and product IDs, so real IAP
+   can be wired (Phase 4/6 step — see below).
 
-## TestFlight (owner + team)
-1. Build via EAS (`eas build --platform ios` — EAS project to be created; slug `calm-quest`).
-2. Submit for TestFlight from App Store Connect.
-3. Invite the Apple Developer account email; accept in the TestFlight app.
+## TestFlight
+- Submit via **EAS build** (`npx eas build --platform ios`).
+- The TestFlight invite goes to the **Apple Developer account email**.
 
-## Notes
-- The daily loop, grace streaks, paywall, and all paid gates are implemented, offline-first, and covered by the proof suites in `scripts/` (`proof-phase2a/2b/3/4a/4b`).
-- Keep honest copy everywhere: no fake unlocks, no scarcity/urgency (acceptable-use is a hard line).
+## Real IAP swap-in (Engineer — after owner creds exist; do NOT fake in the meantime)
+- Replace the stub seams at:
+  - `src/subscription/index.ts` (subscription service)
+  - `src/subscription/authStub.ts` (auth service)
+- Wire RevenueCat or `react-native-iap` against the store products above, and add
+  **server-side validation** for entitlements. Until then the paywall is presentational
+  only (honest — no fabricated purchases).
+
+## Pre-flight checks
+- `npm run typecheck` — exit 0.
+- `node scripts/proof-phase*.js` (phase2a → phase4b) — all pass.
+- `npx expo export --platform ios` — success.
+- No `cq-tpl` / template leftovers in `src/` or `app.json` (identity is relocked).
+
+## After first release
+- Android port (package `com.questcalm.app`, ~2 weeks after iOS ships).
+- Trademark check for "Calm Quest" is the owner's step (before store listing is final).
