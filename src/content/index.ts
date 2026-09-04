@@ -1,9 +1,10 @@
 /**
- * Calm Quest — offline content bundle (Phase 1).
+ * Calm Quest — offline content bundle (Phase 6).
  *
- * Self-describing barrel: all four content sets plus CONTENT_META, which
- * honestly marks this bundle as a SAMPLE starter set for Phase 1 — the
- * in-house content pass replaces it wholesale before any user-facing ship.
+ * Self-describing barrel: all four content sets plus CONTENT_META. Phase 6
+ * replaced the Phase 1 SAMPLE starter set wholesale with the full in-house
+ * content pack: 60 quests (5 themes × 12), 75 affirmations, 30 gratitude
+ * prompts, 60 WEB verses.
  */
 import type { Quest, Affirmation, GratitudePrompt, Verse } from '../models/types';
 import { quests } from './quests';
@@ -28,10 +29,10 @@ export type { Quest, Affirmation, GratitudePrompt, Verse };
  * render, and treat the `note` as the honest status of this content.
  */
 export const CONTENT_META = {
-  version: '0.1.0-sample',
-  note: 'SAMPLE starter set — replaced in the in-house content pass',
+  version: '1.0.0',
+  note: 'In-house content pack — 60 quests, 75 affirmations, 30 prompts, 60 WEB verses',
   attribution:
-    'Scripture from the World English Bible (WEB), public domain. All other content written in-house for Calm Quest (sample, not final).',
+    'Scripture from the World English Bible (WEB), public domain. All other content written in-house for Calm Quest.',
 } as const;
 
 /** Convenience counts for boot-time proofs and future diagnostics. */
