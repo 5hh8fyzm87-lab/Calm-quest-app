@@ -14,6 +14,14 @@
  *    ready." Nothing claims a trial started when none did, and nothing is
  *    charged (there is no store to charge).
  *
+ * Phase 4b (F10 continuation): the trial path is now typed end to end — the
+ * AuthService seam runs FIRST (create-or-sign-in), and on a real account the
+ * guest's local state is merged with `mergeGuestState` (higher streak wins,
+ * XP never drops, glimpses union) before the entitlement is applied. With
+ * the stub, auth answers reason 'stub' and the flow stops at the same honest
+ * "coming soon" state as before — no fake signup UI, no fabricated accounts,
+ * no "account created" moments.
+ *
  * Route source: 'auto' = the one-time post-3rd-loop modal; 'growth' = the
  * small header re-surface after day 7. Same screen either way.
  */
@@ -33,6 +41,8 @@ import {
   type PlanId,
   type SubscriptionService,
 } from '../subscription';
+import { authService } from '../subscription/authStub';
+import { mergeGuestState } from '../subscription/merge';
 import { subscriptionService } from '../subscription/stub';
 import { badges, buttons, cards, colors, page, radii, spacing } from '../theme';
 
@@ -86,15 +96,40 @@ export default function PaywallScreen({
   }
 
   /**
-   * "Start 7-day free trial": asks the SubscriptionService. With the stub it
-   * answers 'unavailable' and we say exactly that — no fake success, no
-   * entitlement written, nothing charged.
+   * "Start 7-day free trial": the typed F10 sequence. (1) AuthService seam —
+   * create-or-sign-in; with the stub this answers reason 'stub' and the flow
+   * stops at the honest "coming soon" state, exactly as before. (2) On a real
+   * account, merge the guest's local state with `mergeGuestState` (higher
+   * streak wins, XP never drops, glimpses union) and persist the merged
+   * state. (3) Only then the SubscriptionService purchase; only a VERIFIED
+   * entitlement snapshot may flip tier to 'paid' (F8 guard). No fake signup
+   * UI, no fabricated accounts, no "account created" moments anywhere.
    */
   async function startTrial(service: SubscriptionService) {
     if (busyRef.current || storeState === 'granted') return;
     busyRef.current = true;
     setStoreState('asking');
     try {
+      // Step 1 — auth (F10). Stub → reason 'stub', stop honestly.
+      const authAvailable = await authService.isAvailable();
+      if (!authAvailable) {
+        setStoreState('unavailable');
+        return;
+      }
+      const auth = await authService.createOrSignIn();
+      if (!auth.ok || !auth.account) {
+        setStoreState('unavailable');
+        return;
+      }
+      // Step 2 — guest → account merge (F10) and persist. `state` is the
+      // guest's local snapshot; the account's remote snapshot came from the
+      // real auth provider.
+      const guest = state ?? (await loadState());
+      const merged = mergeGuestState(guest, auth.account);
+      const { saveState } = await import('../storage/store');
+      await saveState(merged);
+      setState(merged);
+      // Step 3 — the store. Same rules as Phase 4a: only a verified snapshot.
       const available = await service.isAvailable();
       if (!available) {
         setStoreState('unavailable');
@@ -105,10 +140,8 @@ export default function PaywallScreen({
         setStoreState('unavailable');
         return;
       }
-      // Real service path (Phase 4b/6): verified snapshot → the one honest
-      // store write path. Not reachable while the stub is installed.
       const { applyEntitlement } = await import('../storage/store');
-      const next = await applyEntitlement(state ?? (await loadState()), result.value);
+      const next = await applyEntitlement(merged, result.value);
       setState(next);
       setStoreState('granted');
     } catch {
