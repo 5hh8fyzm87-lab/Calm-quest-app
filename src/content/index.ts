@@ -10,8 +10,17 @@ import { quests } from './quests';
 import { affirmations } from './affirmations';
 import { prompts } from './prompts';
 import { verses } from './verses';
+import { dayNumber, pickToday, rotationIndex } from './rotation';
+import {
+  PATH_LABELS,
+  QUEST_TYPE_INTROS,
+  QUEST_TYPE_LABELS,
+  THEME_LABELS,
+} from './themes';
 
 export { quests, affirmations, prompts, verses };
+export { dayNumber, pickToday, rotationIndex };
+export { PATH_LABELS, QUEST_TYPE_INTROS, QUEST_TYPE_LABELS, THEME_LABELS };
 export type { Quest, Affirmation, GratitudePrompt, Verse };
 
 /**

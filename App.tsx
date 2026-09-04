@@ -1,31 +1,21 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
-import { CONTENT_COUNTS } from './src/content';
 
-const contentProbe = `${CONTENT_COUNTS.quests} quests · ${CONTENT_COUNTS.affirmations} affirmations · ${CONTENT_COUNTS.prompts} prompts · ${CONTENT_COUNTS.verses} verses loaded`;
+import RootNavigator from './src/navigation/RootNavigator';
 
+/**
+ * Calm Quest — app root.
+ *
+ * Phase 2a: a typed native-stack root (Onboarding → Home) replaces the
+ * Phase 1 content-counts proof line. Onboarding persists `path` +
+ * `onboarded` via the AsyncStorage store; the navigator routes accordingly
+ * on every launch. Home shows today's quest, Affirmation of the Day, and a
+ * grace-toned streak chip (Flow B start; completion is Phase 2b).
+ */
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text style={styles.probe}>{contentProbe}</Text>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <>
+      <RootNavigator />
+      <StatusBar style="dark" />
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  probe: {
-    fontSize: 14,
-    color: '#555',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-});
