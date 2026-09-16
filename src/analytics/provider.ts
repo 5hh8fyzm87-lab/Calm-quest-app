@@ -33,6 +33,9 @@
  *                             boundary crossed on a real completion)
  *  - restore_requested      — the user tapped Restore purchases (instrumented
  *                             no-op call; the seam stays honest either way)
+ *  - subscription_manage_opened — the user tapped Manage subscription (Phase 7;
+ *                             records the tap itself, never a claim that the
+ *                             store's screen actually opened)
  */
 export type AnalyticsEvent =
   | 'quest_completed'
@@ -45,7 +48,8 @@ export type AnalyticsEvent =
   | 'trial_converted'
   | 'unsubscribed'
   | 'level_up'
-  | 'restore_requested';
+  | 'restore_requested'
+  | 'subscription_manage_opened';
 
 /**
  * Params a real provider may want (primitive values only — no nested objects,

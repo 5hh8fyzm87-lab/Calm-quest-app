@@ -54,9 +54,19 @@ export const TRIAL_DAYS = 7;
 
 /** Why a purchase/restore attempt could not complete. */
 export type UnavailableReason =
-  | 'stub' // the seam is stubbed — store not wired yet (today's only reason)
-  | 'store_unavailable' // real later: billing SDK unreachable
-  | 'user_cancelled'; // real later: the user backed out of the sheet
+  | 'stub' // the seam is stubbed — no store wired at all (web / non-native build)
+  | 'store_unavailable' // the billing SDK is unreachable in this build (Expo Go, store down)
+  | 'user_cancelled' // the user backed out of the store sheet — nothing charged
+  | 'pending' // the store has not confirmed yet (Ask to Buy, deferred, slow network)
+  | 'nothing_to_restore' // the store answered: no Calm Quest purchase on this account
+  | 'failed'; // anything else the store reported
+
+/**
+ * Where results come from, for honest copy and analytics:
+ *  - 'store': a real billing SDK is compiled in and being asked (Phase 7).
+ *  - 'fallback': no store in this build at all — the stub answers.
+ */
+export type ServiceSource = 'store' | 'fallback';
 
 /** What any availability/purchase/restore call returns. */
 export interface ServiceResult<T> {
@@ -67,27 +77,56 @@ export interface ServiceResult<T> {
   reason?: UnavailableReason;
 }
 
+/** A verified entitlement snapshot (the only shape that may become tier 'paid'). */
+export type EntitlementSnapshot = { tier: Tier; expiry?: string };
+
 /**
  * The one abstraction the paywall + entitlement flow depend on. Keep methods
  * async and result-shaped so the real implementation (store sheet, receipt
  * round-trip) can be slower and still fit.
+ *
+ * Phase 7: the real implementation is `IapSubscriptionService` (react-native-iap)
+ * and `source` tells the UI which copy is true. The stub implementation remains
+ * and is what non-native builds (web) and the proofs use.
  */
 export interface SubscriptionService {
-  /** Is a real store wired up? Always false in the stub. */
+  /** 'store' when a real billing SDK is compiled in, 'fallback' otherwise. */
+  readonly source: ServiceSource;
+
+  /** Is a real store wired up AND reachable right now? */
   isAvailable(): Promise<boolean>;
 
-  /** Plan rows to render (store-localized when real). */
+  /**
+   * Plan rows to render. With a live store these carry the store's OWN
+   * localized price strings; on failure the sealed/unavailable copy applies and
+   * the caller may fall back to SUBSCRIPTION_PLANS (same numbers, unchanged).
+   */
   getPlans(): Promise<ServiceResult<readonly PlanInfo[]>>;
 
   /**
    * Begin a purchase (the trial is store-configured on the real products).
    * Success returns a VERIFIED entitlement snapshot — only then may tier
-   * become 'paid'. The stub never succeeds (reason 'stub').
+   * become 'paid'. Never succeeds with a fabricated value.
    */
-  purchase(plan: PlanId): Promise<ServiceResult<{ tier: Tier; expiry?: string }>>;
+  purchase(plan: PlanId): Promise<ServiceResult<EntitlementSnapshot>>;
 
   /** Restore prior purchases. Same honesty rules as purchase. */
-  restore(): Promise<ServiceResult<{ tier: Tier; expiry?: string }>>;
+  restore(): Promise<ServiceResult<EntitlementSnapshot>>;
+
+  /**
+   * Optional (Phase 7, store-backed services only): ask the store what is
+   * active right now and report it. `value.tier === 'free'` means the store
+   * answered and holds no active Calm Quest subscription — a query FAILURE
+   * returns ok:false instead, because a failed query proves nothing and must
+   * never downgrade anyone.
+   */
+  syncEntitlement?(): Promise<ServiceResult<EntitlementSnapshot>>;
+
+  /**
+   * Optional: open the platform's subscription-management surface. Returns
+   * false when this build has nothing to manage (fallback/no store).
+   */
+  openManageSubscriptions?(): Promise<boolean>;
 }
 
 /** Type guard for a ServiceResult failure with the stub reason. */

@@ -7,33 +7,46 @@ account exists.
 ## Locked identity (already in code — `app.json`)
 - App name (display): **Calm Quest**
 - Expo slug: `calm-quest`
-- iOS bundle ID: `com.questcalm.app` · Android package (planned): `com.questcalm.app`
+- iOS bundle ID: `com.questcalm.app` · Android package: `com.questcalm.app`
+- Apple Team ID: `3NNGCUL9V6` (in `app.json` → `expo.ios.appleTeamId`)
 - Brand/domain: **questcalm.com** (owner purchasing; `$14` first yr / `~$47` renew)
-- Version: `1.0.0`
+- Version: `1.0.0` · iOS build number `1` (EAS `appVersionSource: remote` manages it after the first build)
 
 ## App Store Connect (Owner — needs Apple Developer account)
 1. Create app record: **Calm Quest**, bundle ID `com.questcalm.app`.
 2. Create subscription products (both with a **7-day free trial**):
    - `calmquest_monthly` — **$9.99 / month**
    - `calmquest_yearly` — **$59.99 / year** (≈ $5/mo, "Best value" anchor)
+   - both in ONE subscription group (two plans of one Calm Quest+ subscription)
 3. Give the team: **Team ID** + confirmations of bundle ID and product IDs, so real IAP
-   can be wired (Phase 4/6 step — see below).
+   can be wired.
 
 ## TestFlight
-- Submit via **EAS build** (`npx eas build --platform ios`).
+- One-time: `npx eas-cli@latest login` then `npx eas-cli@latest init` (links the project,
+  writes `extra.eas.projectId`) — owner-assisted, interactive.
+- Build: `npx eas-cli@latest build --platform ios --profile preview` (internal distribution)
+  or `--profile production` for App Store. EAS handles the signing credentials for Team
+  `3NNGCUL9V6`.
+- Upload/TestFlight: `npx eas-cli@latest submit --platform ios --profile production`.
 - The TestFlight invite goes to the **Apple Developer account email**.
 
-## Real IAP swap-in (Engineer — after owner creds exist; do NOT fake in the meantime)
-- Replace the stub seams at:
-  - `src/subscription/index.ts` (subscription service)
-  - `src/subscription/authStub.ts` (auth service)
-- Wire RevenueCat or `react-native-iap` against the store products above, and add
-  **server-side validation** for entitlements. Until then the paywall is presentational
-  only (honest — no fabricated purchases).
+## Real IAP — DONE in Phase 7 (see `docs/IAP.md`)
+- `react-native-iap` (+ `react-native-nitro-modules`) is wired behind the seam:
+  `src/subscription/bridge.native.ts` is the only file that imports the SDK,
+  `src/subscription/iap.ts` implements the seam, `src/subscription/mapping.ts` holds the
+  pure (proven) product/entitlement mapping, and `src/subscription/index.ts` picks the
+  implementation.
+- Builds with no store (web, or a runtime without the SDK) fall back to the stub service
+  and keep the honest "store setup coming soon" copy — never a fake success.
+- The auth seam (`src/subscription/authStub.ts`) is still a stub: the purchase proceeds on
+  the local profile and `runTrialFlow` merges the guest state the moment a real account
+  provider exists (F10).
+- **Still open:** server-side receipt validation — documented in `docs/IAP.md` with the
+  exact one-file change for when the Supabase backend lands.
 
 ## Pre-flight checks
 - `npm run typecheck` — exit 0.
-- `node scripts/proof-phase*.js` (phase2a → phase6) — all pass.
+- `node scripts/proof-phase*.js` (phase2a → phase7) — all pass.
 - `npx expo export --platform ios` — success.
 - No `cq-tpl` / template leftovers in `src/` or `app.json` (identity is relocked).
 

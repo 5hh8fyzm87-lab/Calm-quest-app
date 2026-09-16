@@ -23,10 +23,17 @@
  */
 
 import type { Tier } from '../models/types';
-import type { PlanId, PlanInfo, ServiceResult, SubscriptionService } from './service';
+import type { PlanId, PlanInfo, ServiceResult, ServiceSource, SubscriptionService } from './service';
 import { SUBSCRIPTION_PLANS } from './service';
 
 export class StubSubscriptionService implements SubscriptionService {
+  /**
+   * No store in this build (web, or a runtime without the billing SDK). The UI
+   * uses this to pick its honest copy: 'fallback' is the "store setup coming
+   * soon" state, not the "store unreachable right now" state.
+   */
+  readonly source: ServiceSource = 'fallback';
+
   async isAvailable(): Promise<boolean> {
     // Honest: no store is wired. The real service returns true once the
     // billing SDK + server-side validation are live.
