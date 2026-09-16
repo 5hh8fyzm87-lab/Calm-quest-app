@@ -1,26 +1,23 @@
 /**
- * Calm Quest — Paywall (Phase 4a, feature spec §2 Flow E, §5, F8).
+ * Calm Quest — Paywall (Phase 4a; real store wired in Phase 7, spec §2 Flow E,
+ * §5, F8).
  *
  * The one-time subscription decision point. Rules it lives by:
  *  - Value recap, 3 bullets max (spec's exact three).
- *  - Price toggle: Monthly $9.99 / Yearly $59.99 ≈ $5/mo · "Best value".
- *  - Primary CTA "Start 7-day free trial"; secondary "Continue free forever"
- *    is EQUALLY visible — same size, one tap, no guilt copy, no dark patterns.
+ *  - Price toggle: Monthly / Yearly with "Best value". Prices are the STORE's
+ *    own localized strings when the store answered, otherwise the configured
+ *    ones ($9.99 / $59.99 ≈ $5/mo) — never a made-up number either way.
+ *  - Primary CTA "Start 7-day free trial"; secondary "Continue free forever" is
+ *    EQUALLY visible — same size, one tap, no guilt copy, no dark patterns.
  *  - NO scarcity, NO countdown, NO "limited offer", no fake urgency.
  *  - The trial begins ONLY on an explicit tap of the primary CTA, and only a
- *    VERIFIED entitlement from the SubscriptionService may ever flip tier to
- *    'paid' (F8 guard). While the store seam is stubbed, the CTA shows the
- *    honest state: "Store setup coming soon — this builds the moment you're
- *    ready." Nothing claims a trial started when none did, and nothing is
- *    charged (there is no store to charge).
+ *    VERIFIED store entitlement may ever flip tier to 'paid' (F8 guard). Every
+ *    other ending — cancelled, pending, store unreachable, no store at all —
+ *    says exactly what happened and charges nothing.
  *
- * Phase 4b (F10 continuation): the trial path is now typed end to end — the
- * AuthService seam runs FIRST (create-or-sign-in), and on a real account the
- * guest's local state is merged with `mergeGuestState` (higher streak wins,
- * XP never drops, glimpses union) before the entitlement is applied. With
- * the stub, auth answers reason 'stub' and the flow stops at the same honest
- * "coming soon" state as before — no fake signup UI, no fabricated accounts,
- * no "account created" moments.
+ * Grace is untouched by any of this: the modal still appears once after the 3rd
+ * completed loop, "Continue free forever" still suppresses it for 7 days, and a
+ * first quest is never blocked (see src/subscription/paywall.ts).
  *
  * Route source: 'auto' = the one-time post-3rd-loop modal; 'growth' = the
  * small header re-surface after day 7. Same screen either way.
@@ -29,22 +26,22 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { analytics } from '../analytics';
 import type { AppRouteParamList } from '../navigation/types';
 import { loadState, markPaywallSeen } from '../storage/store';
 import type { AppState } from '../storage/store';
 import {
-  isStubUnavailable,
+  authService,
+  runTrialFlow,
   SUBSCRIPTION_PLANS,
+  subscriptionService,
   TRIAL_DAYS,
   type PlanId,
-  type SubscriptionService,
+  type PlanInfo,
+  type TrialStatus,
 } from '../subscription';
-import { authService } from '../subscription/authStub';
-import { mergeGuestState } from '../subscription/merge';
-import { subscriptionService } from '../subscription/stub';
 import { badges, buttons, cards, colors, page, radii, spacing } from '../theme';
 
 type Nav = NativeStackNavigationProp<AppRouteParamList, 'Paywall'>;
@@ -56,6 +53,38 @@ const VALUE_BULLETS: readonly string[] = [
   'Unlimited Gratitude Glimpses, plus your whole archive',
 ];
 
+/**
+ * Honest copy per ending. Every one of these means "nothing was charged unless
+ * the store said so" — and only 'granted' ever unlocks anything.
+ */
+const OUTCOME_COPY: Record<Exclude<TrialStatus, 'granted'>, { title: string; copy: string }> = {
+  stub: {
+    title: 'Store setup coming soon',
+    copy:
+      'This build has no App Store connection, so no trial can start and nothing was charged. Your progress keeps accruing either way.',
+  },
+  store_unavailable: {
+    title: 'The store isn\u2019t reachable right now',
+    copy:
+      'Subscribing needs the App Store build (TestFlight or the App Store). No trial started and nothing was charged — the daily loop stays free.',
+  },
+  user_cancelled: {
+    title: 'No charge — nothing changed',
+    copy:
+      'You closed the App Store sheet, so no subscription started and nothing was charged. Your daily loop stays free, forever.',
+  },
+  pending: {
+    title: 'Waiting on the store',
+    copy:
+      'The App Store hasn\u2019t confirmed that yet — this happens with Ask to Buy or a slow connection. If it goes through, Calm Quest+ unlocks on its own and you\u2019ll see it here; until the store confirms, nothing is unlocked. You were not charged twice.',
+  },
+  failed: {
+    title: 'The store couldn\u2019t finish that',
+    copy:
+      'Something went wrong on the App Store side and nothing was charged. Try again whenever you like — or keep going free; everything you\u2019ve earned stays yours.',
+  },
+};
+
 export default function PaywallScreen({
   route,
 }: {
@@ -66,12 +95,14 @@ export default function PaywallScreen({
 
   const [state, setState] = useState<AppState | null>(null);
   const [plan, setPlan] = useState<PlanId>('yearly'); // "Best value" preselected
-  // Honest store state: 'idle' → 'asking' → 'unavailable' (stub) or 'granted'
-  // (real service + verified entitlement only). 'granted' is unreachable in
-  // the stub by construction.
-  const [storeState, setStoreState] = useState<'idle' | 'asking' | 'unavailable' | 'granted'>(
-    'idle',
-  );
+  // Price rows: the store's localized prices once it answers, configured ones
+  // until then (and forever, in a build with no store).
+  const [plans, setPlans] = useState<readonly PlanInfo[]>(SUBSCRIPTION_PLANS);
+  // 'asking' covers the store sheet being up; 'granted' is reachable ONLY from
+  // a verified store entitlement. `note` carries every other honest ending
+  // ('granted' is impossible here by type — a grant is a success, not a note).
+  const [storeState, setStoreState] = useState<'idle' | 'asking' | 'granted'>('idle');
+  const [note, setNote] = useState<Exclude<TrialStatus, 'granted'> | null>(null);
   const busyRef = useRef(false);
 
   useEffect(() => {
@@ -79,6 +110,14 @@ export default function PaywallScreen({
     loadState().then((s) => {
       if (active) setState(s);
     });
+    // Ask the store for real prices. A failure is not shown as an error here:
+    // the configured prices stand and the CTA still reports the truth on tap.
+    subscriptionService
+      .getPlans()
+      .then((result) => {
+        if (active && result.ok && result.value && result.value.length > 0) setPlans(result.value);
+      })
+      .catch(() => {});
     return () => {
       active = false;
     };
@@ -104,70 +143,55 @@ export default function PaywallScreen({
   }
 
   /**
-   * "Start 7-day free trial": the typed F10 sequence. (1) AuthService seam —
-   * create-or-sign-in; with the stub this answers reason 'stub' and the flow
-   * stops at the honest "coming soon" state, exactly as before. (2) On a real
-   * account, merge the guest's local state with `mergeGuestState` (higher
-   * streak wins, XP never drops, glimpses union) and persist the merged
-   * state. (3) Only then the SubscriptionService purchase; only a VERIFIED
-   * entitlement snapshot may flip tier to 'paid' (F8 guard). No fake signup
-   * UI, no fabricated accounts, no "account created" moments anywhere.
+   * "Start 7-day free trial": the typed F10 + F8 sequence, orchestrated by
+   * `runTrialFlow` (best-effort account merge → store purchase → verified
+   * entitlement applied through the single store-side writer). Analytics fires
+   * only on real events: 'trial_started' once the store is genuinely reachable,
+   * 'trial_converted' only when a verified entitlement landed.
    */
-  async function startTrial(service: SubscriptionService) {
+  async function startTrial() {
     if (busyRef.current || storeState === 'granted') return;
     busyRef.current = true;
     setStoreState('asking');
+    setNote(null);
     try {
-      // Step 1 — auth (F10). Stub → reason 'stub', stop honestly.
-      const authAvailable = await authService.isAvailable();
-      if (!authAvailable) {
-        setStoreState('unavailable');
-        return;
-      }
-      // Phase 5 (S5): a real provider is available — the trial flow truly
-      // STARTED (the user tapped the CTA and the seam is live). Never fires
-      // while the stub answers false (there is no trial to start).
-      analytics.track('trial_started', { plan });
-      const auth = await authService.createOrSignIn();
-      if (!auth.ok || !auth.account) {
-        setStoreState('unavailable');
-        return;
-      }
-      // Step 2 — guest → account merge (F10) and persist. `state` is the
-      // guest's local snapshot; the account's remote snapshot came from the
-      // real auth provider.
+      const available = await subscriptionService.isAvailable();
+      // Phase 5 (S5): the trial flow truly STARTED (store reachable). Never
+      // fires for a build with no store — there is no trial to start.
+      if (available) analytics.track('trial_started', { plan });
+
       const guest = state ?? (await loadState());
-      const merged = mergeGuestState(guest, auth.account);
-      const { saveState } = await import('../storage/store');
-      await saveState(merged);
-      setState(merged);
-      // Step 3 — the store. Same rules as Phase 4a: only a verified snapshot.
-      const available = await service.isAvailable();
-      if (!available) {
-        setStoreState('unavailable');
-        return;
+      const outcome = await runTrialFlow({
+        service: subscriptionService,
+        auth: authService,
+        guest,
+        plan,
+      });
+      setState(outcome.state);
+
+      if (outcome.status === 'granted') {
+        // Fires ONLY on a VERIFIED entitlement landing (tier 'paid' persisted).
+        analytics.track('trial_converted', {
+          plan,
+          expiry: outcome.entitlement?.expiry ?? null,
+        });
+        setStoreState('granted');
+      } else {
+        setStoreState('idle');
+        setNote(outcome.status);
       }
-      const result = await service.purchase(plan);
-      if (!result.ok || !result.value) {
-        setStoreState('unavailable');
-        return;
-      }
-      const { applyEntitlement } = await import('../storage/store');
-      const next = await applyEntitlement(merged, result.value);
-      // Phase 5 (S5): trial_converted fires ONLY on a VERIFIED entitlement
-      // landing (tier 'paid' persisted). The stub can never reach this line —
-      // no fabricated conversions, ever.
-      analytics.track('trial_converted', { plan, expiry: result.value.expiry ?? null });
-      setState(next);
-      setStoreState('granted');
     } catch {
-      setStoreState('unavailable');
+      setStoreState('idle');
+      setNote('failed');
     } finally {
       busyRef.current = false;
     }
   }
 
-  const yearly = SUBSCRIPTION_PLANS.find((p) => p.id === 'yearly');
+  const asking = storeState === 'asking';
+  const granted = storeState === 'granted';
+  const yearly = plans.find((p) => p.id === 'yearly');
+  const selected = plans.find((p) => p.id === plan);
 
   return (
     <ScrollView style={page.screen} contentContainerStyle={[page.content, styles.container]}>
@@ -202,22 +226,22 @@ export default function PaywallScreen({
 
       {/* Price toggle — descriptive badge only, never urgency */}
       <View style={styles.planRow}>
-        {SUBSCRIPTION_PLANS.map((p) => {
-          const selected = plan === p.id;
+        {plans.map((p) => {
+          const isSelected = plan === p.id;
           return (
             <Pressable
               key={p.id}
               accessibilityRole="radio"
-              accessibilityState={{ selected }}
+              accessibilityState={{ selected: isSelected }}
               onPress={() => setPlan(p.id)}
               style={({ pressed }) => [
                 styles.planCard,
-                selected && styles.planCardSelected,
+                isSelected && styles.planCardSelected,
                 pressed && styles.pressed,
               ]}
             >
               <View style={styles.planTop}>
-                <Text style={[styles.planName, selected && styles.planNameSelected]}>
+                <Text style={[styles.planName, isSelected && styles.planNameSelected]}>
                   {p.id === 'monthly' ? 'Monthly' : 'Yearly'}
                 </Text>
                 {p.badge ? (
@@ -236,46 +260,45 @@ export default function PaywallScreen({
       {/* Primary CTA — trial starts ONLY here, only on a verified grant */}
       <Pressable
         accessibilityRole="button"
-        accessibilityState={{ disabled: storeState === 'asking' || storeState === 'granted' }}
-        disabled={storeState === 'asking' || storeState === 'granted'}
-        onPress={() => void startTrial(subscriptionService)}
+        accessibilityState={{ disabled: asking || granted }}
+        disabled={asking || granted}
+        onPress={() => void startTrial()}
         style={({ pressed }) => [
           buttons.primary,
-          (storeState === 'asking' || storeState === 'granted') && buttons.disabled,
+          (asking || granted) && buttons.disabled,
           pressed && styles.pressed,
           styles.cta,
         ]}
       >
         <Text
-          style={[
-            buttons.primaryText,
-            (storeState === 'asking' || storeState === 'granted') && buttons.disabledText,
-          ]}
+          style={[buttons.primaryText, (asking || granted) && buttons.disabledText]}
         >
-          {storeState === 'granted'
+          {granted
             ? 'You\u2019re in — welcome to Calm Quest+'
             : `Start ${TRIAL_DAYS}-day free trial`}
         </Text>
       </Pressable>
 
-      {/* Honest stub state: says exactly what is (and isn't) happening. */}
-      {storeState === 'unavailable' ? (
+      {/* Honest state per ending: says exactly what is (and isn't) happening. */}
+      {asking ? (
+        <Text style={styles.askingNote}>
+          {subscriptionService.source === 'store'
+            ? 'Opening the App Store…'
+            : 'Checking the store…'}
+        </Text>
+      ) : note ? (
         <View style={styles.honestBox}>
-          <Text style={styles.honestTitle}>Store setup coming soon</Text>
-          <Text style={styles.honestCopy}>
-            This builds the moment you're ready — the App Store connection isn't
-            set up yet, so no trial can start and nothing was charged. Your
-            progress keeps accruing either way.
-          </Text>
+          <Text style={styles.honestTitle}>{OUTCOME_COPY[note].title}</Text>
+          <Text style={styles.honestCopy}>{OUTCOME_COPY[note].copy}</Text>
         </View>
-      ) : storeState === 'asking' ? (
-        <Text style={styles.askingNote}>Checking the store…</Text>
       ) : (
         <Text style={styles.trialNote}>
           {TRIAL_DAYS} days free, then{' '}
-          {plan === 'yearly' ? `${yearly?.price ?? '$59.99'}/year` : '$9.99/month'} — cancel
-          anytime, in the store, in two taps. You keep everything you earned,
-          always.
+          {plan === 'yearly'
+            ? `${yearly?.price ?? '$59.99'}/year`
+            : `${selected?.price ?? '$9.99'}/month`}{' '}
+          — cancel anytime, in the store, in two taps. You keep everything you
+          earned, always.
         </Text>
       )}
 

@@ -19,10 +19,15 @@
  * Phase 4b (§5): a Calm Quest+ section — the current tier (from the persisted
  * entitlement snapshot, which only applyEntitlement can set), a Restore
  * purchases button that calls the SubscriptionService seam, and a Manage
- * subscription entry. Both are HONESTLY STUBBED: the stub service answers
- * reason 'stub', so restore says exactly "store not connected yet — nothing
- * to restore" (never fake success) and manage says the store setup is
- * coming soon. Same one-file-swap seam as the paywall.
+ * subscription entry.
+ *
+ * Phase 7: those two entries are REAL on native builds — Restore runs the store's
+ * restore and applies only a verified snapshot (with a distinct, honest note for
+ * every other ending: nothing found, store unreachable, cancelled, pending,
+ * failed), and Manage opens the App Store's own subscription screen. On a build
+ * with no store the stub's "store not connected yet" copy still applies. The
+ * tier also reconciles locally against the store-given end date, so an ended
+ * period cannot grant paid features forever.
  *
  * Phase 5 (§3 F9): sound on/off (persisted intent — no bundled audio plays in
  * this MVP yet; the pref is ready to wire), Log out (only ever enabled when
@@ -60,7 +65,12 @@ import {
 import { loadState, saveState } from '../storage/store';
 import type { AppState } from '../storage/store';
 import { authService } from '../subscription/authStub';
-import { subscriptionService } from '../subscription/stub';
+import {
+  isPaid,
+  reconciledEntitlement,
+  subscriptionService,
+  type UnavailableReason,
+} from '../subscription';
 import { badges, buttons, cards, colors, page, radii, spacing } from '../theme';
 
 const COPY = {
@@ -84,17 +94,42 @@ const COPY = {
   tierFree: 'Free — the daily loop, forever',
   tierPaid: 'Calm Quest+ — everything unlocked',
   tierNote:
-    'Your tier is saved on this device and only changes with a verified purchase or restore.',
+    'Your tier is saved on this device and only changes with a verified purchase or restore — or when a paid period\u2019s store-given end date passes.',
   restore: 'Restore purchases',
   manage: 'Manage subscription',
   restoring: 'Checking the store…',
-  // The stub service answers reason 'stub': say exactly what is (not) wired.
+  // Honest outcome per seam reason (Phase 7 wires the real store): each one says
+  // exactly what happened, and none of them claims a subscription exists.
   restoreStubTitle: 'Store not connected yet',
   restoreStubCopy:
-    'Purchases aren\u2019t set up yet, so there\u2019s nothing to restore — and nothing was charged. When the App Store connection is live, this restores any Calm Quest+ you\u2019ve bought.',
+    'Purchases aren\u2019t set up in this build, so there\u2019s nothing to restore — and nothing was charged. When the App Store connection is live, this restores any Calm Quest+ you\u2019ve bought.',
+  restoreUnavailableTitle: 'The store isn\u2019t reachable right now',
+  restoreUnavailableCopy:
+    'Nothing could be checked, so nothing changed — and nothing was charged. You can try again from the App Store build, or in a moment.',
+  restoreEmptyTitle: 'No purchases found',
+  restoreEmptyCopy:
+    'We checked the App Store and found no Calm Quest+ purchase on this Apple Account. If you subscribed with a different Apple Account, switch to it in the App Store and try again.',
+  restoreCancelledTitle: 'No charge — nothing changed',
+  restoreCancelledCopy:
+    'You closed the App Store sheet. Nothing was restored, and nothing was charged.',
+  restorePendingTitle: 'Waiting on the store',
+  restorePendingCopy:
+    'The App Store hasn\u2019t confirmed yet. If a purchase exists, it will show up here the moment the store confirms — nothing unlocks until it does.',
+  restoreFailedTitle: 'The store couldn\u2019t finish that',
+  restoreFailedCopy:
+    'Something went wrong on the App Store side and nothing changed. You can try again whenever you like.',
+  restoreGrantedTitle: 'Welcome back',
+  restoreGrantedCopy:
+    'Your Calm Quest+ subscription is active on this device. Everything you earned is exactly where you left it.',
+  manageTitle: 'Manage in the App Store',
+  manageCopy:
+    'Your subscription lives with the App Store — see the next payment date, change the plan, or cancel there in two taps. Nothing needs managing here, and we never nudge you about it.',
   manageStubTitle: 'Store setup coming soon',
   manageStubCopy:
-    'Subscriptions will be managed in the App Store once the store connection is live. Nothing is billed today — there is no store to bill.',
+    'Subscriptions are managed in the App Store once the store connection is live in this build. Nothing is billed today — there is no store to bill.',
+  endedTitle: 'Your subscription has ended',
+  endedCopy:
+    'The paid period is over, so Calm Quest+ features are paused. Everything you earned — streaks, levels, glimpses, saved affirmations — stays exactly where it is, and the daily loop keeps going.',
   // Phase 5 — sound, account, data, legal.
   soundSection: 'SOUND',
   soundOn: 'Sound on — gentle chimes',
@@ -140,6 +175,27 @@ async function readPrefs(): Promise<{
   };
 }
 
+/**
+ * Honest note per seam reason (Phase 7). Every branch says what actually
+ * happened; none of them claims a subscription exists or was restored.
+ */
+function restoreNoteFor(reason: UnavailableReason | undefined): { title: string; copy: string } {
+  switch (reason) {
+    case 'stub':
+      return { title: COPY.restoreStubTitle, copy: COPY.restoreStubCopy };
+    case 'store_unavailable':
+      return { title: COPY.restoreUnavailableTitle, copy: COPY.restoreUnavailableCopy };
+    case 'nothing_to_restore':
+      return { title: COPY.restoreEmptyTitle, copy: COPY.restoreEmptyCopy };
+    case 'user_cancelled':
+      return { title: COPY.restoreCancelledTitle, copy: COPY.restoreCancelledCopy };
+    case 'pending':
+      return { title: COPY.restorePendingTitle, copy: COPY.restorePendingCopy };
+    default:
+      return { title: COPY.restoreFailedTitle, copy: COPY.restoreFailedCopy };
+  }
+}
+
 export default function SettingsScreen() {
   const navigation = useNavigation<Nav>();
 
@@ -157,11 +213,11 @@ export default function SettingsScreen() {
   // one prompt); later focus events only read the current grant.
   const askedPermissionRef = useRef(false);
 
-  // Phase 4b — Calm Quest+ section state.
+  // Phase 4b — Calm Quest+ section state (Phase 7: real store outcomes).
   const [tier, setTier] = useState<'free' | 'paid'>('free');
   const [restoring, setRestoring] = useState(false);
   const [restoreNote, setRestoreNote] = useState<null | { title: string; copy: string }>(null);
-  const [manageOpen, setManageOpen] = useState(false);
+  const [manageNote, setManageNote] = useState<null | { title: string; copy: string }>(null);
 
   // Phase 5 — sound pref + honest account state (the auth seam's truth).
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -181,15 +237,47 @@ export default function SettingsScreen() {
         setTime(p.time ?? '08:00');
         setCanDeliver(p.canDeliver);
         setSoundEnabled(p.soundEnabled);
-        // Phase 4b: the tier shown is the persisted snapshot — the only
-        // writer is applyEntitlement (verified entitlements), so display is
-        // always honest.
+        // Phase 4b/7: the tier shown is the persisted snapshot — the only
+        // writers are applyEntitlement (verified entitlements) and the local
+        // expiry reconciliation below. A store re-check happens further down.
         setTier(s.entitlements.tier);
+        // Phase 7: a paid period whose store-reported expiry has PASSED is
+        // downgraded here, locally and honestly — the expiry came from the
+        // store's own transaction. Nothing else can ever lower a tier (a store
+        // query that fails proves nothing, so it changes nothing).
+        const downgraded = reconciledEntitlement(s.entitlements, Date.now());
+        if (downgraded) {
+          const { applyEntitlement } = await import('../storage/store');
+          const next = await applyEntitlement(s, downgraded);
+          if (!active) return;
+          setTier(next.entitlements.tier);
+          setRestoreNote({ title: COPY.endedTitle, copy: COPY.endedCopy });
+        }
         // Phase 5: ask the auth service — the stub answers false forever, so
         // the Log out row can never fake a signed-out state.
         void authService.isAvailable().then((avail) => {
           if (active) setAuthAvailable(avail);
         });
+        // Phase 7: ask the STORE what is actually active, but only as an
+        // UPGRADE path: a pending/deferred purchase that has since been
+        // confirmed, or a subscription bought on another device, shows up here.
+        // A store answer of "nothing active" is deliberately NOT applied —
+        // a signed-out App Store account reports nothing too, and a paying user
+        // must never be downgraded by that (only the expiry check above lowers
+        // a tier). Failures are silent for the same reason.
+        if (subscriptionService.source === 'store' && subscriptionService.syncEntitlement) {
+          void subscriptionService
+            .syncEntitlement()
+            .then(async (result) => {
+              if (!active || !result.ok || !isPaid(result.value)) return;
+              const { applyEntitlement } = await import('../storage/store');
+              const current = await loadState();
+              if (!active || isPaid(current.entitlements)) return;
+              const next = await applyEntitlement(current, result.value!);
+              if (active) setTier(next.entitlements.tier);
+            })
+            .catch(() => {});
+        }
         // Reminder defaults ON (F7) — the first time the screen opens we ask
         // the OS once. Denial is handled kindly below; no retry loop.
         if (p.enabled && !p.canDeliver && !askedPermissionRef.current) {
@@ -277,35 +365,59 @@ export default function SettingsScreen() {
   }
 
   /**
-   * Phase 4b — Restore purchases, via the SubscriptionService seam. The stub
-   * answers reason 'stub', so the note says exactly what is true: the store
-   * isn't connected, nothing to restore, nothing charged. When the real
-   * service answers with a verified snapshot, applyEntitlement is the one
-   * honest write path. Never fake success, never invent an entitlement.
+   * Phase 7 — Restore purchases, via the REAL store on native builds.
+   *
+   *  - ok + a verified snapshot → applyEntitlement (the one honest write path)
+   *    and a warm "welcome back".
+   *  - 'nothing_to_restore' → say plainly that the App Store holds no Calm
+   *    Quest+ purchase for this Apple Account. The tier is NOT touched: a
+   *    signed-out store account reports nothing too, so this can never downgrade
+   *    a paying user (only the expiry check can lower a tier).
+   *  - unavailable / cancelled / pending / failed → their own honest note.
+   * Never a fake success, never an invented entitlement.
    */
   async function onRestore() {
     if (restoring) return;
     setRestoring(true);
     setRestoreNote(null);
-    // Phase 5 (S5): instrument the restore attempt — the seam stays honest
-    // (the stub answers 'stub'), this only records that the user asked.
+    // Phase 5 (S5): instrument the restore attempt — this records that the user
+    // asked, not that anything was restored.
     analytics.track('restore_requested', {});
     try {
       const result = await subscriptionService.restore();
       if (result.ok && result.value) {
-        // Real-service path: a VERIFIED snapshot → the one honest store write.
         const s = await loadState();
         const { applyEntitlement } = await import('../storage/store');
-        await applyEntitlement(s, result.value);
-        setTier(result.value.tier);
-        setRestoreNote(null);
+        const next = await applyEntitlement(s, result.value);
+        setTier(next.entitlements.tier);
+        setRestoreNote({ title: COPY.restoreGrantedTitle, copy: COPY.restoreGrantedCopy });
       } else {
-        setRestoreNote({ title: COPY.restoreStubTitle, copy: COPY.restoreStubCopy });
+        setRestoreNote(restoreNoteFor(result.reason));
       }
     } catch {
-      setRestoreNote({ title: COPY.restoreStubTitle, copy: COPY.restoreStubCopy });
+      setRestoreNote(restoreNoteFor('failed'));
     } finally {
       setRestoring(false);
+    }
+  }
+
+  /**
+   * Phase 7 — Manage subscription. Opens the App Store's own subscription
+   * screen (the SDK's deep link, falling back to Apple's public page), which is
+   * where a plan is changed or cancelled. When this build has no store, the
+   * honest "managed in the App Store once the store connection is live" note
+   * shows instead — nothing pretends a subscription exists.
+   */
+  async function onManage() {
+    if (manageNote) setManageNote(null);
+    analytics.track('subscription_manage_opened', {});
+    try {
+      const opened = (await subscriptionService.openManageSubscriptions?.()) ?? false;
+      setManageNote(
+        opened ? { title: COPY.manageTitle, copy: COPY.manageCopy } : { title: COPY.manageStubTitle, copy: COPY.manageStubCopy },
+      );
+    } catch {
+      setManageNote({ title: COPY.manageStubTitle, copy: COPY.manageStubCopy });
     }
   }
 
@@ -538,8 +650,8 @@ export default function SettingsScreen() {
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityState={{ selected: manageOpen }}
-            onPress={() => setManageOpen((v) => !v)}
+            accessibilityState={{ selected: manageNote !== null }}
+            onPress={() => void onManage()}
             style={({ pressed }) => [buttons.ghost, styles.plusBtn, pressed && styles.pressed]}
           >
             <Text style={buttons.ghostText}>{COPY.manage}</Text>
@@ -553,10 +665,10 @@ export default function SettingsScreen() {
           </View>
         ) : null}
 
-        {manageOpen ? (
+        {manageNote ? (
           <View style={styles.plusNoteBox}>
-            <Text style={styles.plusNoteTitle}>{COPY.manageStubTitle}</Text>
-            <Text style={styles.plusNoteCopy}>{COPY.manageStubCopy}</Text>
+            <Text style={styles.plusNoteTitle}>{manageNote.title}</Text>
+            <Text style={styles.plusNoteCopy}>{manageNote.copy}</Text>
           </View>
         ) : null}
       </View>
