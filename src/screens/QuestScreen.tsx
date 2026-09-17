@@ -43,7 +43,7 @@ import { levelForXp, levelTitleInfo, FREE_LEVELS, TOTAL_LEVELS, XP_QUEST } from 
 import { completeQuest, loadState } from '../storage/store';
 import type { AppState } from '../storage/store';
 import { paywallSurface } from '../subscription/paywall';
-import { badges, buttons, cards, colors, page, radii, spacing } from '../theme';
+import { badges, buttons, cards, colors, page, radii, spacing, useScreenInsets } from '../theme';
 import { localDateString } from '../utils/daily';
 
 /** Finds a verse by id (bundle is small; a Map would be premature). */
@@ -209,6 +209,11 @@ function CheckInRow({
 
 export default function QuestScreen({ route }: { route: { params: { questId: string } } }) {
   const navigation = useNavigation<Nav>();
+
+  // Safe-area fix: additive device insets on top of the design padding (the
+  // scroll container and the full-screen loading box).
+  const screenInsets = useScreenInsets(spacing.lg, spacing.xl);
+  const bootInsets = useScreenInsets(spacing.lg, spacing.lg);
   const { questId } = route.params;
   const today = localDateString();
 
@@ -279,7 +284,7 @@ export default function QuestScreen({ route }: { route: { params: { questId: str
 
   if (!state || !quest) {
     return (
-      <View style={styles.bootBox}>
+      <View style={[styles.bootBox, bootInsets]}>
         <Text style={cards.subtitle}>
           {!state
             ? 'Loading today\u2019s quest\u2026'
@@ -387,7 +392,7 @@ export default function QuestScreen({ route }: { route: { params: { questId: str
   return (
     <ScrollView
       style={page.screen}
-      contentContainerStyle={[page.content, styles.container]}
+      contentContainerStyle={[page.content, styles.container, screenInsets]}
     >
       {/* Header meta */}
       <View style={styles.metaRow}>

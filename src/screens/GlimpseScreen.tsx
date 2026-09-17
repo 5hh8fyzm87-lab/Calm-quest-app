@@ -45,7 +45,7 @@ import { glimpseForDate, loadState, saveGlimpse } from '../storage/store';
 import type { AppState } from '../storage/store';
 import { paywallSurface } from '../subscription/paywall';
 import { glimpseCapReached } from '../subscription/gates';
-import { badges, buttons, cards, colors, page, radii, spacing } from '../theme';
+import { badges, buttons, cards, colors, page, radii, spacing, useScreenInsets } from '../theme';
 import { localDateString } from '../utils/daily';
 
 /** Ambient ring length: ~60 seconds of gentle ticks. Never a hard stop. */
@@ -230,6 +230,11 @@ function GlimpseCapCard({
 
 export default function GlimpseScreen({ route }: { route: { params: { promptId: string } } }) {
   const navigation = useNavigation<Nav>();
+
+  // Safe-area fix: additive device insets on top of the design padding (the
+  // scroll container and the full-screen loading box).
+  const screenInsets = useScreenInsets(spacing.lg, spacing.xl);
+  const bootInsets = useScreenInsets(spacing.lg, spacing.lg);
   const { promptId } = route.params;
   const today = localDateString();
 
@@ -296,7 +301,7 @@ export default function GlimpseScreen({ route }: { route: { params: { promptId: 
 
   if (!state || !prompt) {
     return (
-      <View style={styles.bootBox}>
+      <View style={[styles.bootBox, bootInsets]}>
         <Text style={cards.subtitle}>Loading today&rsquo;s glimpse…</Text>
         <Pressable
           accessibilityRole="button"
@@ -415,7 +420,7 @@ export default function GlimpseScreen({ route }: { route: { params: { promptId: 
       return (
         <ScrollView
           style={page.screen}
-          contentContainerStyle={[page.content, styles.container]}
+          contentContainerStyle={[page.content, styles.container, screenInsets]}
         >
           <View style={[badges.chip, badges.sage, styles.badge]}>
             <Text style={[badges.chipText, badges.sageText]}>GRATITUDE GLIMPSE</Text>
@@ -431,7 +436,7 @@ export default function GlimpseScreen({ route }: { route: { params: { promptId: 
     return (
       <ScrollView
         style={page.screen}
-        contentContainerStyle={[page.content, styles.container]}
+        contentContainerStyle={[page.content, styles.container, screenInsets]}
       >
         <View style={[badges.chip, badges.sage, styles.badge]}>
           <Text style={[badges.chipText, badges.sageText]}>GRATITUDE GLIMPSE</Text>
@@ -485,7 +490,7 @@ export default function GlimpseScreen({ route }: { route: { params: { promptId: 
   return (
     <ScrollView
       style={page.screen}
-      contentContainerStyle={[page.content, styles.container]}
+      contentContainerStyle={[page.content, styles.container, screenInsets]}
       keyboardShouldPersistTaps="handled"
     >
       <View style={[badges.chip, badges.sage, styles.badge]}>

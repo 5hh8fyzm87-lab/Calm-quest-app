@@ -42,7 +42,7 @@ import {
   type PlanInfo,
   type TrialStatus,
 } from '../subscription';
-import { badges, buttons, cards, colors, page, radii, spacing } from '../theme';
+import { badges, buttons, cards, colors, page, radii, spacing, useScreenInsets } from '../theme';
 
 type Nav = NativeStackNavigationProp<AppRouteParamList, 'Paywall'>;
 
@@ -92,6 +92,11 @@ export default function PaywallScreen({
 }) {
   const navigation = useNavigation<Nav>();
   const source = route.params?.source ?? 'auto';
+
+  // Safe-area fix: additive device insets on top of the design padding — the
+  // header clears the cutout, and the bottom inset keeps the CTA rows (still
+  // inside the scroll body) clear of the home indicator.
+  const screenInsets = useScreenInsets(spacing.xl, spacing.xl);
 
   const [state, setState] = useState<AppState | null>(null);
   const [plan, setPlan] = useState<PlanId>('yearly'); // "Best value" preselected
@@ -194,7 +199,7 @@ export default function PaywallScreen({
   const selected = plans.find((p) => p.id === plan);
 
   return (
-    <ScrollView style={page.screen} contentContainerStyle={[page.content, styles.container]}>
+    <ScrollView style={page.screen} contentContainerStyle={[page.content, styles.container, screenInsets]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={[badges.chip, badges.gold]}>

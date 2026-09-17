@@ -71,7 +71,7 @@ import {
   subscriptionService,
   type UnavailableReason,
 } from '../subscription';
-import { badges, buttons, cards, colors, page, radii, spacing } from '../theme';
+import { badges, buttons, cards, colors, page, radii, spacing, useScreenInsets } from '../theme';
 
 const COPY = {
   title: 'Settings',
@@ -198,6 +198,11 @@ function restoreNoteFor(reason: UnavailableReason | undefined): { title: string;
 
 export default function SettingsScreen() {
   const navigation = useNavigation<Nav>();
+
+  // Safe-area fix: additive device insets on top of the design padding — the
+  // header clears the cutout, and the last settings rows stay clear of the
+  // home indicator.
+  const screenInsets = useScreenInsets(spacing.lg, spacing.xl);
 
   // Prefs are loaded on focus so the screen always starts from persisted truth.
   const [loaded, setLoaded] = useState(false);
@@ -491,7 +496,7 @@ export default function SettingsScreen() {
   return (
     <ScrollView
       style={page.screen}
-      contentContainerStyle={[page.content, styles.container]}
+      contentContainerStyle={[page.content, styles.container, screenInsets]}
     >
       {/* Header row: back + title (the Home gear row navigates here). */}
       <View style={styles.header}>
