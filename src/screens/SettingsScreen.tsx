@@ -4,8 +4,10 @@
  * MVP Settings = the gentle daily reminder: a toggle (default ON) + a time
  * picker (default 08:00), persisted in the profile and synced to exactly ONE
  * scheduled local notification. Copy is soft and honest — "One nudge a day,
- * whenever you choose — never more." Grace is never purchasable: there is no
- * upgrade UI here (and none anywhere in the app).
+ * whenever you choose — never more." Grace is never purchasable: it is free,
+ * automatic and stays that way. (The Calm Quest+ card can invite an upgrade —
+ * see the post-wave-3 note at the end of this header — but grace itself is
+ * never for sale, and there is no streak-repair item anywhere in the app.)
  *
  * Permission handling (kind, no nagging):
  *  - Reminder defaults ON; the first time this screen opens we ask the OS
@@ -45,6 +47,19 @@
  * five-theme swatch strip on the Calm Quest+ card, and legal rows whose chevron
  * is drawn and colourless. Presentation only: every setting, every honest note
  * and every approved string behaves exactly as before.
+ *
+ * Post-wave-3 (owner request, Sep 2026, after the build-11 device review): a
+ * FREE user's Calm Quest+ card was a sign with no door — it named the tier but
+ * the only way to the paywall ran through gated content. The card now carries
+ * ONE upgrade affordance for FREE users, labelled with the owner-approved
+ * "Upgrade to Calm Quest+" string, in the gold invitation family
+ * (`src/components/UpgradeInvitation.tsx`). It reuses the EXACT presentation
+ * path the gated content uses — `navigate('Paywall', { source: 'growth' })` —
+ * so there is still one paywall, no new purchase logic, and the paywall's own
+ * flow is untouched. A PLUS user's card is unchanged (Manage + Restore, no
+ * upgrade affordance at all). The tier is read from the persisted snapshot on
+ * every focus, so returning here after a verified purchase re-renders the card
+ * as PLUS with no restart.
  */
 
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -63,6 +78,7 @@ import {
 } from 'react-native';
 
 import { analytics } from '../analytics';
+import { UpgradeInvitation } from '../components/UpgradeInvitation';
 import { THEME_LABELS } from '../content';
 import type { AppRouteParamList } from '../navigation/types';
 import {
@@ -125,6 +141,10 @@ const COPY = {
   tierPaid: 'Calm Quest+ — everything unlocked',
   tierNote:
     'Your tier is saved on this device and only changes with a verified purchase or restore — or when a paid period\u2019s store-given end date passes.',
+  // Owner-approved copy addition (Sep 2026, after the build-11 device review):
+  // the ONE new string in the app. The upgrade affordance shows it and nothing
+  // else — no sub-heading, no hint, no badge text.
+  upgrade: 'Upgrade to Calm Quest+',
   restore: 'Restore purchases',
   manage: 'Manage subscription',
   restoring: 'Checking the store…',
@@ -467,6 +487,23 @@ export default function SettingsScreen() {
   }
 
   /**
+   * The upgrade entry point (owner request, Sep 2026). A FREE user's card is now
+   * a door as well as a sign.
+   *
+   * This deliberately does ONE thing: open the existing PaywallScreen by the
+   * exact path the gated content already uses (`source: 'growth'`, the same
+   * route params as Home's gated theme rows and the Quest / Glimpse gates). No
+   * new purchase logic, no pre-selected plan, no second paywall surface, and
+   * `source: 'auto'` is never used here — that one belongs to the post-3rd-loop
+   * modal alone. The paywall decides everything that follows, honestly, exactly
+   * as it does for every other entry. Whatever happens there, the tier shown on
+   * the card is re-read from the persisted snapshot on the next focus.
+   */
+  function onUpgrade() {
+    navigation.navigate('Paywall', { source: 'growth' });
+  }
+
+  /**
    * Phase 5 — sound on/off (F9). Persisted with the same store path as the
    * reminder. MVP intent note: no bundled audio asset exists yet (the
    * reminder is deliberately muted, the Pause chime is a Phase 6 sound-design
@@ -669,8 +706,10 @@ export default function SettingsScreen() {
       </View>
 
       {/* Phase 4b — Calm Quest+ section (§5). Honest tier display; restore +
-          manage are honestly stubbed at the seam. No upgrade pressure here —
-          this section informs; it never sells. */}
+          manage are honestly stubbed at the seam. Since Sep 2026 a FREE user's
+          card also holds ONE calm door to the paywall (see onUpgrade) — an
+          invitation with no urgency, no badge and no countdown; a PLUS user's
+          card has no upgrade row at all. */}
       <SectionHead label={COPY.plusSection} style={styles.sectionHead} />
       <View style={[cards.card, styles.plusCard]}>
         <View style={styles.row}>
@@ -690,6 +729,15 @@ export default function SettingsScreen() {
             availability at mark scale. Decorative — the tier chip and the line
             above already say this in words. */}
         <ThemeSwatchStrip items={swatchItems} style={styles.plusSwatches} />
+
+        {/* The door (owner request, Sep 2026): FREE users get one upgrade row
+            here, in the gold invitation family, opening the SAME paywall the
+            gated content opens. `loaded` keeps a PLUS user's card untouched —
+            the persisted tier is not known yet for the instant before the
+            first load resolves, and we never claim someone is on FREE. */}
+        {loaded && tier === 'free' ? (
+          <UpgradeInvitation label={COPY.upgrade} onPress={onUpgrade} />
+        ) : null}
 
         <View style={styles.plusActions}>
           <Pressable
