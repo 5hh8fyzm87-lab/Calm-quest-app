@@ -43,8 +43,36 @@ import { levelForXp, levelTitleInfo, FREE_LEVELS, TOTAL_LEVELS, XP_QUEST } from 
 import { completeQuest, loadState } from '../storage/store';
 import type { AppState } from '../storage/store';
 import { paywallSurface } from '../subscription/paywall';
-import { badges, buttons, cards, colors, page, radii, spacing, useScreenInsets } from '../theme';
+import {
+  KeptSeal,
+  Leaf,
+  LevelUpOverlay,
+  Ornament,
+  StemMark,
+  TickRing,
+  badges,
+  buttons,
+  cards,
+  colors,
+  page,
+  radii,
+  spacing,
+  themeAccents,
+  typeScale,
+  useScreenInsets,
+  withAlpha,
+} from '../theme';
+import type { ThemeAccent } from '../theme';
 import { localDateString } from '../utils/daily';
+
+/**
+ * The pause plate's thin ticking ring (§3.3.3). Same tick device as the
+ * Gratitude Glimpse ring — decorative stillness, never a breathing pulse and
+ * never a countdown that punishes: it just redraws from the real seconds.
+ */
+const PAUSE_RING_SIZE = 156;
+const PAUSE_RING_RADIUS = 66;
+const PAUSE_RING_TICKS = 48;
 
 /** Finds a verse by id (bundle is small; a Map would be premature). */
 function verseFor(verseId: string | undefined): Verse | undefined {
@@ -58,35 +86,23 @@ function questById(id: string): Quest | undefined {
 }
 
 // ---------------------------------------------------------------------------
-// Level-up moment (Flow D) — gentle celebration card, one CTA, never asks
+// Level-up moment (Flow D) — the peak moment, escalated to a full-screen
+// overlay (visual-direction §4.3): paper, one ~900ms light bloom instead of
+// confetti, a 120px stage glyph, the level title in serif 34px, the blessing
+// verbatim, one quiet CTA. Copy is passed through untouched.
 // ---------------------------------------------------------------------------
 
-function LevelUpCard({
-  level,
-  onDismiss,
-}: {
-  level: number;
-  onDismiss: () => void;
-}) {
+function LevelUpMoment({ level, onDismiss }: { level: number; onDismiss: () => void }) {
   const info = levelTitleInfo(level);
   return (
-    <View style={styles.levelCard}>
-      <View style={[badges.chip, badges.gold, styles.levelBadge]}>
-        <Text style={[badges.chipText, badges.goldText]}>LEVEL {level}</Text>
-      </View>
-      <Text style={styles.levelTitle}>{info.title}</Text>
-      <Text style={styles.levelBlessing}>{info.blessing}</Text>
-      <Text style={styles.levelTierNote}>
-        {level} of {TOTAL_LEVELS} growth levels — you're on the way.
-      </Text>
-      <Pressable
-        accessibilityRole="button"
-        onPress={onDismiss}
-        style={({ pressed }) => [buttons.ghost, pressed && styles.pressed]}
-      >
-        <Text style={buttons.ghostText}>Back to today</Text>
-      </Pressable>
-    </View>
+    <LevelUpOverlay
+      level={level}
+      title={info.title}
+      blessing={info.blessing}
+      tierNote={`${level} of ${TOTAL_LEVELS} growth levels — you're on the way.`}
+      dismissLabel="Back to today"
+      onDismiss={onDismiss}
+    />
   );
 }
 
@@ -156,16 +172,21 @@ function QuestCompleteCard({
 }) {
   return (
     <View style={[cards.card, styles.doneCard]}>
-      <Text style={styles.doneCheck}>✓</Text>
+      {/* §3.3.4: kept seal in sage + the gold XP pill + a stem that has just
+          gained its one leaf. The level-up escalates to the overlay (§4.3),
+          which owns the only CTA in that moment. */}
+      <KeptSeal size={64} tone="sage" style={styles.doneSeal} />
       <Text style={styles.doneTitle}>Today's quest is done.</Text>
-      <Text style={styles.doneCopy}>
-        +{xpGained} XP · Day {streakDays} secured — whenever you're ready
-      </Text>
+      <View style={[badges.chip, badges.gold, styles.xpPill]}>
+        <Text style={[badges.chipText, badges.goldText, styles.xpPillText]}>
+          +{xpGained} XP
+        </Text>
+      </View>
+      <Text style={styles.doneCopy}>Day {streakDays} secured — whenever you're ready</Text>
+      <StemMark leaves={1} bud size={32} color={colors.sageDeep} style={styles.doneStem} />
       {levelGated ? (
         <LevelGateCard onSeePlus={onSeePlus} onDismiss={onDone} />
-      ) : leveledUp ? (
-        <LevelUpCard level={level} onDismiss={onDone} />
-      ) : (
+      ) : leveledUp ? null : (
         <Pressable
           accessibilityRole="button"
           onPress={onDone}
@@ -180,14 +201,21 @@ function QuestCompleteCard({
 
 type Nav = NativeStackNavigationProp<AppRouteParamList, 'Quest'>;
 
-/** A check-in choice row for Read & Reflect quests. */
+/**
+ * A check-in choice row for Read & Reflect quests (§3.3.3): the selected row
+ * takes the day's theme — tint fill, accent edge, `deep` text and a filled
+ * drawn leaf instead of a plain dot. The leaf is decoration: the row's state
+ * is carried by `accessibilityState` and by the `deep` ink.
+ */
 function CheckInRow({
   label,
   selected,
+  accent,
   onPress,
 }: {
   label: string;
   selected: boolean;
+  accent: ThemeAccent;
   onPress: () => void;
 }) {
   return (
@@ -197,12 +225,12 @@ function CheckInRow({
       onPress={onPress}
       style={({ pressed }) => [
         styles.checkRow,
-        selected && styles.checkRowSelected,
+        selected && { borderColor: accent.accent, backgroundColor: accent.tint },
         pressed && styles.pressed,
       ]}
     >
-      <Text style={[styles.checkText, selected && styles.checkTextSelected]}>{label}</Text>
-      {selected ? <View style={styles.checkDot} /> : null}
+      <Text style={[styles.checkText, selected && { color: accent.deep }]}>{label}</Text>
+      {selected ? <Leaf size={16} color={accent.deep} style={styles.checkLeaf} /> : null}
     </Pressable>
   );
 }
@@ -304,6 +332,20 @@ export default function QuestScreen({ route }: { route: { params: { questId: str
   const verse = verseFor(quest.verseId);
   const duration = quest.durationSeconds ?? 60;
 
+  // §3.3: the day's theme is the screen's one accent — `accent` is paint only
+  // (edges, fills, ornament), `deep` carries every state mark and line of text.
+  const accent = themeAccents[quest.theme];
+  // Pause plate (§3.3.3): the digits sit in a soft stillness plate. The ring
+  // just redraws the real countdown — decoration, never a timer of its own,
+  // and never a "breathe with me" pulse.
+  const still = themeAccents.stillness;
+  const pauseLitTicks =
+    quest.type === 'pause' && duration > 0
+      ? Math.round(
+          (Math.min(duration, Math.max(0, duration - secondsLeft)) / duration) * PAUSE_RING_TICKS,
+        )
+      : 0;
+
   // Const snapshots after the null-guard — closures stay narrowable this way.
   const currentState = state;
   const currentQuest = quest;
@@ -390,166 +432,201 @@ export default function QuestScreen({ route }: { route: { params: { questId: str
   }
 
   return (
-    <ScrollView
-      style={page.screen}
-      contentContainerStyle={[page.content, styles.container, screenInsets]}
-    >
-      {/* Header meta */}
-      <View style={styles.metaRow}>
-        <View style={[badges.chip, badges.sage]}>
-          <Text style={[badges.chipText, badges.sageText]}>{THEME_LABELS[quest.theme]}</Text>
-        </View>
-        <View style={[badges.chip, styles.typeChip]}>
-          <Text style={badges.chipText}>{QUEST_TYPE_LABELS[quest.type]}</Text>
-        </View>
-      </View>
-      <Text style={styles.title}>{quest.title}</Text>
-
-      {done && result ? (
-        <QuestCompleteCard
-          xpGained={result.xpGained}
-          streakDays={result.streakDays}
-          level={result.level}
-          leveledUp={result.leveledUp}
-          levelGated={result.levelGated}
-          onSeePlus={() => navigation.navigate('Paywall', { source: 'growth' })}
-          onDone={leaveAfterCompletion}
-        />
-      ) : (
-        <View style={[cards.card, styles.bodyCard]}>
-          {quest.type === 'read_reflect' ? (
-            <>
-              {verse ? (
-                <View style={styles.verseBox}>
-                  <Text style={styles.verseText}>{verse.text}</Text>
-                  <Text style={styles.verseRef}>
-                    {verse.reference} · {verse.translation}
-                  </Text>
-                  <Text style={styles.attribution}>{verse.attribution}</Text>
-                </View>
-              ) : null}
-              <Text style={styles.reflection}>{quest.reflection}</Text>
-              <Text style={styles.promptLabel}>Which word stays with you?</Text>
-              {(quest.checkInOptions ?? []).map((o) => (
-                <CheckInRow
-                  key={o.label}
-                  label={o.label}
-                  selected={checkIn === o.label}
-                  onPress={() => setCheckIn(o.label)}
-                />
-              ))}
-              <Text style={styles.optionalHint}>No wrong answer — a word is enough.</Text>
-            </>
-          ) : null}
-
-          {quest.type === 'act' ? (
-            <>
-              <Text style={styles.actionPrompt}>
-                {quest.actionPrompt ?? QUEST_TYPE_INTROS.act}
-              </Text>
-              <Pressable
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: performed }}
-                onPress={() => setPerformed((p) => !p)}
-                style={({ pressed }) => [
-                  styles.performedRow,
-                  performed && styles.performedRowSelected,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text
-                  style={[styles.performedText, performed && styles.performedTextSelected]}
-                >
-                  {performed ? '✓ I did it' : 'I did it'}
-                </Text>
-              </Pressable>
-              <Text style={styles.optionalHint}>
-                When you've taken the step, tap and then Complete.
-              </Text>
-            </>
-          ) : null}
-
-          {quest.type === 'pause' ? (
-            <>
-              <Text style={styles.pauseCopy}>
-                {quest.pausePrompt ??
-                  `${QUEST_TYPE_INTROS.pause} Close your eyes if it helps; just be still.`}
-              </Text>
-              <View style={styles.timerWrap}>
-                <Text accessibilityLabel={`${duration} seconds`} style={styles.timerText}>
-                  {formatSeconds(secondsLeft)}
-                </Text>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setPerformed(true)}
-                style={({ pressed }) => [
-                  buttons.primary,
-                  styles.pauseBtn,
-                  performed && buttons.disabled,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text style={[buttons.primaryText, performed && buttons.disabledText]}>
-                  {performed ? 'I paused — done' : 'Start the pause'}
-                </Text>
-              </Pressable>
-              <Text style={styles.optionalHint}>
-                {performed
-                  ? secondsLeft > 0
-                    ? `${formatSeconds(secondsLeft)} left — or Complete to finish early.`
-                    : 'Your minute is up — soft landing.'
-                  : 'A quiet minute, nothing else required.'}
-              </Text>
-            </>
-          ) : null}
-
-          {quest.type === 'write' ? (
-            <>
-              <Text style={styles.journalPrompt}>{quest.journalPrompt}</Text>
-              <Text style={styles.optionalHint}>
-                One line is enough. There is no right answer.
-              </Text>
-              <TextInput
-                style={[styles.input, focused && styles.inputFocused]}
-                value={writeText}
-                onChangeText={setWriteText}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
-                placeholder="Write a line (or a word)"
-                placeholderTextColor={colors.inkSoft}
-                multiline
-                maxLength={280}
-                accessibilityLabel="Your one-line journal entry"
-              />
-            </>
-          ) : null}
-
-          {/* Single completion CTA for all four types */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !canComplete }}
-            disabled={!canComplete}
-            onPress={() => void finishQuest()}
-            style={({ pressed }) => [
-              buttons.primary,
-              !canComplete && buttons.disabled,
-              pressed && canComplete && styles.pressed,
-              styles.completeBtn,
-            ]}
-          >
-            <Text style={[buttons.primaryText, !canComplete && buttons.disabledText]}>
-              {quest.type === 'act' && !performed
-                ? 'Complete when done'
-                : `Complete · +${XP_QUEST} XP`}
+    <View style={styles.screenRoot}>
+      <ScrollView
+        style={page.screen}
+        contentContainerStyle={[page.content, styles.container, screenInsets]}
+      >
+        {/* Header meta — the day's colour, a neutral type chip (§3.3.1) */}
+        <View style={styles.metaRow}>
+          <View style={[badges.chip, styles.themeChip, { backgroundColor: accent.tint }]}>
+            <Text style={[badges.chipText, { color: accent.deep }]}>
+              {THEME_LABELS[quest.theme]}
             </Text>
-          </Pressable>
-          <Text style={styles.xpHint}>
-            +{XP_QUEST} XP when you finish · the daily loop is free, forever.
-          </Text>
+          </View>
+          <View style={[badges.chip, styles.typeChip]}>
+            <Text style={[badges.chipText, styles.typeChipText]}>
+              {QUEST_TYPE_LABELS[quest.type]}
+            </Text>
+          </View>
         </View>
-      )}
-    </ScrollView>
+        <Text style={[typeScale.display, styles.title]}>{quest.title}</Text>
+
+        {done && result ? (
+          <QuestCompleteCard
+            xpGained={result.xpGained}
+            streakDays={result.streakDays}
+            level={result.level}
+            leveledUp={result.leveledUp}
+            levelGated={result.levelGated}
+            onSeePlus={() => navigation.navigate('Paywall', { source: 'growth' })}
+            onDone={leaveAfterCompletion}
+          />
+        ) : (
+          <View style={[cards.card, styles.bodyCard]}>
+            {quest.type === 'read_reflect' ? (
+              <>
+                {verse ? (
+                  <View style={[styles.verseBox, { borderLeftColor: accent.accent }]}>
+                    <Ornament style={styles.verseOrnament} />
+                    <Text style={typeScale.readingLg}>{verse.text}</Text>
+                    <Text style={[typeScale.smallCaps, styles.verseRef]}>
+                      {verse.reference} · {verse.translation}
+                    </Text>
+                    <Text style={styles.attribution}>{verse.attribution}</Text>
+                  </View>
+                ) : null}
+                <Text style={styles.reflection}>{quest.reflection}</Text>
+                <Text style={[styles.promptLabel, { color: accent.deep }]}>
+                  Which word stays with you?
+                </Text>
+                {(quest.checkInOptions ?? []).map((o) => (
+                  <CheckInRow
+                    key={o.label}
+                    label={o.label}
+                    selected={checkIn === o.label}
+                    accent={accent}
+                    onPress={() => setCheckIn(o.label)}
+                  />
+                ))}
+                <Text style={styles.optionalHint}>No wrong answer — a word is enough.</Text>
+              </>
+            ) : null}
+
+            {quest.type === 'act' ? (
+              <>
+                <Text style={styles.actionPrompt}>
+                  {quest.actionPrompt ?? QUEST_TYPE_INTROS.act}
+                </Text>
+                <Pressable
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: performed }}
+                  onPress={() => setPerformed((p) => !p)}
+                  style={({ pressed }) => [
+                    styles.performedRow,
+                    { borderColor: accent.accent },
+                    performed && { borderColor: accent.deep, backgroundColor: accent.tint },
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  {performed ? (
+                    <Leaf size={16} color={accent.deep} style={styles.actLeaf} />
+                  ) : null}
+                  <Text style={[styles.performedText, { color: accent.deep }]}>I did it</Text>
+                </Pressable>
+                <Text style={styles.optionalHint}>
+                  When you've taken the step, tap and then Complete.
+                </Text>
+              </>
+            ) : null}
+
+            {quest.type === 'pause' ? (
+              <>
+                <Text style={styles.pauseCopy}>
+                  {quest.pausePrompt ??
+                    `${QUEST_TYPE_INTROS.pause} Close your eyes if it helps; just be still.`}
+                </Text>
+                <View
+                  style={[
+                    styles.pausePlate,
+                    { backgroundColor: still.tint, borderColor: withAlpha(still.accent, 0.4) },
+                  ]}
+                >
+                  <TickRing
+                    lit={pauseLitTicks}
+                    total={PAUSE_RING_TICKS}
+                    size={PAUSE_RING_SIZE}
+                    radius={PAUSE_RING_RADIUS}
+                    tick={3}
+                    color={still.accent}
+                    trackColor={colors.rule}
+                    style={styles.pauseRing}
+                  />
+                  <Text
+                    accessibilityLabel={`${duration} seconds`}
+                    style={[styles.timerText, { color: still.deep }]}
+                  >
+                    {formatSeconds(secondsLeft)}
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setPerformed(true)}
+                  style={({ pressed }) => [
+                    buttons.primary,
+                    styles.pauseBtn,
+                    performed && buttons.disabled,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={[buttons.primaryText, performed && buttons.disabledText]}>
+                    {performed ? 'I paused — done' : 'Start the pause'}
+                  </Text>
+                </Pressable>
+                <Text style={styles.optionalHint}>
+                  {performed
+                    ? secondsLeft > 0
+                      ? `${formatSeconds(secondsLeft)} left — or Complete to finish early.`
+                      : 'Your minute is up — soft landing.'
+                    : 'A quiet minute, nothing else required.'}
+                </Text>
+              </>
+            ) : null}
+
+            {quest.type === 'write' ? (
+              <>
+                <Text style={styles.journalPrompt}>{quest.journalPrompt}</Text>
+                <Text style={styles.optionalHint}>
+                  One line is enough. There is no right answer.
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    { borderColor: withAlpha(accent.accent, 0.45) },
+                    focused && { borderColor: accent.accent, borderWidth: 1.5 },
+                  ]}
+                  value={writeText}
+                  onChangeText={setWriteText}
+                  onFocus={() => setFocused(true)}
+                  onBlur={() => setFocused(false)}
+                  placeholder="Write a line (or a word)"
+                  placeholderTextColor={colors.inkSoft}
+                  multiline
+                  maxLength={280}
+                  accessibilityLabel="Your one-line journal entry"
+                />
+              </>
+            ) : null}
+
+            {/* Single completion CTA for all four types */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !canComplete }}
+              disabled={!canComplete}
+              onPress={() => void finishQuest()}
+              style={({ pressed }) => [
+                buttons.primary,
+                !canComplete && buttons.disabled,
+                pressed && canComplete && styles.pressed,
+                styles.completeBtn,
+              ]}
+            >
+              <Text style={[buttons.primaryText, !canComplete && buttons.disabledText]}>
+                {quest.type === 'act' && !performed
+                  ? 'Complete when done'
+                  : `Complete · +${XP_QUEST} XP`}
+              </Text>
+            </Pressable>
+            <Text style={styles.xpHint}>
+              +{XP_QUEST} XP when you finish · the daily loop is free, forever.
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+      {done && result && result.leveledUp && !result.levelGated ? (
+        <LevelUpMoment level={result.level} onDismiss={leaveAfterCompletion} />
+      ) : null}
+    </View>
   );
 }
 
@@ -561,6 +638,11 @@ function formatSeconds(total: number): string {
 }
 
 const styles = StyleSheet.create({
+  /** Root wrapper: the scroll body plus the full-screen level-up overlay (§4.3). */
+  screenRoot: {
+    flex: 1,
+    backgroundColor: colors.paper,
+  },
   container: {
     paddingTop: spacing.lg,
     paddingBottom: spacing.xl,
@@ -580,34 +662,37 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginBottom: spacing.sm,
   },
-  typeChip: {
-    backgroundColor: colors.tealTint,
+  /** §3.3.1 — the theme chip is filled with its own tint (colour set inline). */
+  themeChip: {
+    alignSelf: 'flex-start',
   },
+  /** §3.3.1 — the type chip stays neutral: sand fill, ink text at full contrast. */
+  typeChip: {
+    backgroundColor: colors.sand,
+  },
+  typeChipText: {
+    color: colors.inkSoft,
+  },
+  /** The serif 26px display type carries most of this style (§2.4). */
   title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: colors.ink,
-    letterSpacing: -0.3,
     marginBottom: spacing.md,
   },
   bodyCard: {
     paddingTop: spacing.lg,
   },
+  /** §3.3.2 — the enlarged verse plate: vellum, 3px theme rule, serif 19px. */
   verseBox: {
-    backgroundColor: colors.paperDeep,
+    backgroundColor: colors.vellum,
+    borderLeftWidth: 3,
     borderRadius: radii.md,
     padding: spacing.md,
     marginBottom: spacing.md,
   },
-  verseText: {
-    fontSize: 16,
-    fontStyle: 'italic',
-    lineHeight: 25,
-    color: colors.ink,
+  verseOrnament: {
+    marginBottom: spacing.sm,
   },
   verseRef: {
     marginTop: spacing.xs,
-    fontSize: 12,
     color: colors.inkSoft,
   },
   attribution: {
@@ -625,7 +710,6 @@ const styles = StyleSheet.create({
   promptLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: colors.tealDeep,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginBottom: spacing.sm,
@@ -641,23 +725,14 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     backgroundColor: colors.card,
   },
-  checkRowSelected: {
-    borderColor: colors.teal,
-    backgroundColor: colors.tealTint,
-  },
   checkText: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.ink,
   },
-  checkTextSelected: {
-    color: colors.tealDeep,
-  },
-  checkDot: {
-    width: 14,
-    height: 14,
-    borderRadius: radii.pill,
-    backgroundColor: colors.teal,
+  /** §3.3.3 — the filled leaf that replaces the plain selected dot. */
+  checkLeaf: {
+    marginLeft: spacing.sm,
   },
   optionalHint: {
     fontSize: 13,
@@ -677,21 +752,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: colors.teal,
     borderRadius: radii.pill,
     paddingVertical: 14,
     backgroundColor: colors.card,
   },
-  performedRowSelected: {
-    backgroundColor: colors.tealTint,
+  /** §3.3.3 — the performed leaf check beside "I did it". */
+  actLeaf: {
+    marginRight: spacing.xs,
   },
   performedText: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.tealDeep,
-  },
-  performedTextSelected: {
-    color: colors.tealDeep,
   },
   pauseCopy: {
     fontSize: 16,
@@ -699,15 +770,24 @@ const styles = StyleSheet.create({
     color: colors.ink,
     marginBottom: spacing.md,
   },
-  timerWrap: {
+  /** §3.3.3 — a soft stillness plate the digits rest in. No pulse, no breath. */
+  pausePlate: {
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: PAUSE_RING_SIZE,
+    borderRadius: radii.lg,
+    borderWidth: 1,
     marginVertical: spacing.md,
+  },
+  pauseRing: {
+    position: 'absolute',
+    zIndex: 0,
   },
   timerText: {
     fontSize: 52,
     fontWeight: '800',
-    color: colors.teal,
     fontVariant: ['tabular-nums'],
+    zIndex: 1,
   },
   pauseBtn: {
     marginBottom: spacing.xs,
@@ -717,8 +797,9 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     color: colors.ink,
   },
+  /** §3.3.3 — the writing sheet: vellum, theme hairline, theme accent on focus. */
   input: {
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: colors.paperEdge,
     borderRadius: radii.md,
     padding: spacing.md,
@@ -726,12 +807,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 22,
     color: colors.ink,
-    backgroundColor: colors.card,
+    backgroundColor: colors.vellum,
     textAlignVertical: 'top',
     marginTop: spacing.sm,
-  },
-  inputFocused: {
-    borderColor: colors.teal,
   },
   completeBtn: {
     marginTop: spacing.md,
@@ -747,24 +825,35 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xl,
     paddingBottom: spacing.xl,
   },
-  doneCheck: {
-    fontSize: 44,
-    fontWeight: '800',
-    color: colors.teal,
-    marginBottom: spacing.sm,
+  /** §3.3.4 — the kept seal in sage. */
+  doneSeal: {
+    marginBottom: spacing.md,
   },
   doneTitle: {
     fontSize: 22,
     fontWeight: '800',
     color: colors.ink,
-    marginBottom: spacing.xs,
+    marginBottom: spacing.sm,
     textAlign: 'center',
+  },
+  /** §3.3.4 — the gold XP pill. */
+  xpPill: {
+    alignSelf: 'center',
+    marginBottom: spacing.sm,
+  },
+  xpPillText: {
+    fontSize: 14,
+    letterSpacing: 0.4,
   },
   doneCopy: {
     fontSize: 14,
     lineHeight: 21,
     color: colors.inkSoft,
     textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  /** §3.3.4 — the stem that has just gained its one leaf. */
+  doneStem: {
     marginBottom: spacing.md,
   },
   levelCard: {
@@ -791,13 +880,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     color: colors.ink,
-    textAlign: 'center',
-    marginBottom: spacing.sm,
-  },
-  levelTierNote: {
-    fontSize: 12,
-    lineHeight: 18,
-    color: colors.inkSoft,
     textAlign: 'center',
     marginBottom: spacing.sm,
   },

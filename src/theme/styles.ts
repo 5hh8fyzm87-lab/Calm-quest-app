@@ -76,6 +76,13 @@ export const typeScale = StyleSheet.create({
     lineHeight: 28,
     color: colors.ink,
   },
+  /** Prompt voice — serif 20px upright (§3.4.3 Glimpse prompt). */
+  prompt: {
+    fontFamily: serifFamily,
+    fontSize: 20,
+    lineHeight: 29,
+    color: colors.ink,
+  },
   /** Datelines, chips, meta — system sans, letter-spaced, upper case. */
   smallCaps: {
     fontSize: 11,
