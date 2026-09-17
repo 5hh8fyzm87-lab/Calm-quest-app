@@ -18,11 +18,13 @@ import { loadState } from '../storage/store';
 import { colors } from '../theme';
 import GlimpseScreen from '../screens/GlimpseScreen';
 import HomeScreen from '../screens/HomeScreen';
+import KeptScreen from '../screens/KeptScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
 import PaywallScreen from '../screens/PaywallScreen';
 import PrivacyTermsScreen from '../screens/PrivacyTermsScreen';
 import QuestScreen from '../screens/QuestScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import SitWithVerseScreen from '../screens/SitWithVerseScreen';
 import type { AppRouteParamList } from './types';
 
 const Stack = createNativeStackNavigator<AppRouteParamList>();
@@ -88,6 +90,11 @@ export default function RootNavigator() {
         <Stack.Screen name="PrivacyTerms" component={PrivacyTermsScreen} />
         {/* Phase 4a (Flow E): one-time paywall + its day-7 header re-surface. */}
         <Stack.Screen name="Paywall" component={PaywallScreen} />
+        {/* Build 13 (proposal §2 A/D/I): the "stay a while" layer — the kept
+            archive + saved affirmations, and the zero-XP verse reader. Both are
+            read-only surfaces: no XP, no notifications, no new persistence. */}
+        <Stack.Screen name="Kept" component={KeptScreen} />
+        <Stack.Screen name="Verse" component={SitWithVerseScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -25,4 +25,15 @@ export type AppRouteParamList = {
    * `growth` = the small header re-surface after the 7-day quiet window.
    */
   Paywall: { source: 'auto' | 'growth' } | undefined;
+  /**
+   * Kept (build 13, proposal §2 A + D): the kept-glimpses archive and the saved
+   * affirmations. Reads persisted ledgers only — grants no XP and writes
+   * nothing. Reachable from Home's "Kept this week" strip and from Settings.
+   */
+  Kept: undefined;
+  /**
+   * Verse (build 13, proposal §2 I): "Sit with a verse" — a zero-XP reading
+   * surface over the bundled verse library. Reachable from Settings.
+   */
+  Verse: undefined;
 };
