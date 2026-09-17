@@ -21,6 +21,15 @@
  *
  * Route source: 'auto' = the one-time post-3rd-loop modal; 'growth' = the
  * small header re-surface after day 7. Same screen either way.
+ *
+ * Visual-Richness wave 3 (§3.5): richness that is TRUTHFUL — the five-theme
+ * swatch row is the hero and it shows the real names and real tints, filled for
+ * the themes this user actually holds and tint-at-55%-plus-gold-hairline for the
+ * rest (the same grammar Home uses for gated themes). Value card gets goldBright
+ * ✦ marks and hairline dividers, the free-forever note becomes an "already
+ * yours" sand strip, plan cards take the selected/unselected pair from the
+ * spec, and the honest-state boxes keep `paperDeep` plus a neutral status dot —
+ * never red, because nothing was charged.
  */
 
 import { useNavigation } from '@react-navigation/native';
@@ -29,6 +38,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { analytics } from '../analytics';
+import { THEME_LABELS } from '../content';
 import type { AppRouteParamList } from '../navigation/types';
 import { loadState, markPaywallSeen } from '../storage/store';
 import type { AppState } from '../storage/store';
@@ -37,12 +47,27 @@ import {
   runTrialFlow,
   SUBSCRIPTION_PLANS,
   subscriptionService,
+  THEME_ORDER,
   TRIAL_DAYS,
+  visibleThemes,
   type PlanId,
   type PlanInfo,
   type TrialStatus,
 } from '../subscription';
-import { badges, buttons, cards, colors, page, radii, spacing, useScreenInsets } from '../theme';
+import {
+  badges,
+  buttons,
+  cards,
+  colors,
+  page,
+  radii,
+  shadows,
+  spacing,
+  typeScale,
+  ThemeSwatchRow,
+  useScreenInsets,
+} from '../theme';
+import type { ThemeSwatchItem } from '../theme';
 
 type Nav = NativeStackNavigationProp<AppRouteParamList, 'Paywall'>;
 
@@ -198,6 +223,18 @@ export default function PaywallScreen({
   const yearly = plans.find((p) => p.id === 'yearly');
   const selected = plans.find((p) => p.id === plan);
 
+  // The swatch row's availability comes from the app's REAL gate derivation —
+  // never a guess about what this user holds. Until the first load resolves the
+  // honest baseline is 'free': a paid user cannot reach this screen at all
+  // (`paywallSurface` returns null for a paid tier).
+  const day = today();
+  const available = visibleThemes(state ?? { entitlements: { tier: 'free' } }, day);
+  const swatchItems: ThemeSwatchItem[] = THEME_ORDER.map((t) => ({
+    theme: t,
+    name: THEME_LABELS[t],
+    available: available.includes(t),
+  }));
+
   return (
     <ScrollView style={page.screen} contentContainerStyle={[page.content, styles.container, screenInsets]}>
       {/* Header */}
@@ -209,24 +246,38 @@ export default function PaywallScreen({
           <Text style={styles.sourceNote}>A quiet reminder of what's here — no pressure.</Text>
         ) : null}
       </View>
-      <Text style={styles.title}>More ways to grow, whenever you want them</Text>
+      <Text style={[typeScale.display, styles.title]}>More ways to grow, whenever you want them</Text>
       <Text style={styles.subtitle}>
         The daily loop you're using stays free, forever. Calm Quest+ adds more
         of it, on your schedule.
       </Text>
 
-      {/* Value recap — exactly three bullets (Flow E step 2) */}
+      {/* The hero: five tinted marks with their REAL names — filled for the
+          themes this user holds, tint at ~55% + a gold hairline for the rest.
+          §3.5.1's picture of bullet #1, drawn from real data only. */}
+      <View style={[cards.card, styles.swatchCard]}>
+        <ThemeSwatchRow items={swatchItems} />
+      </View>
+
+      {/* Value recap — exactly three bullets (Flow E step 2), on goldBright ✦
+          marks with a hairline rule between them. */}
       <View style={[cards.card, styles.valueCard]}>
-        {VALUE_BULLETS.map((b) => (
-          <View key={b} style={styles.bulletRow}>
-            <Text style={styles.bulletDot}>✦</Text>
-            <Text style={styles.bulletText}>{b}</Text>
+        {VALUE_BULLETS.map((b, i) => (
+          <View key={b}>
+            {i > 0 ? <View style={styles.bulletRule} /> : null}
+            <View style={styles.bulletRow}>
+              <Text style={styles.bulletDot}>✦</Text>
+              <Text style={styles.bulletText}>{b}</Text>
+            </View>
           </View>
         ))}
-        <Text style={styles.freeNote}>
-          Free, and staying free: the daily quest, Affirmation of the Day, one
-          Glimpse a day, grace streaks, and levels 1–5.
-        </Text>
+        {/* "Already yours" — the free-forever note, copy verbatim, on sand. */}
+        <View style={styles.freeStrip}>
+          <Text style={styles.freeStripText}>
+            Free, and staying free: the daily quest, Affirmation of the Day, one
+            Glimpse a day, grace streaks, and levels 1–5.
+          </Text>
+        </View>
       </View>
 
       {/* Price toggle — descriptive badge only, never urgency */}
@@ -250,8 +301,8 @@ export default function PaywallScreen({
                   {p.id === 'monthly' ? 'Monthly' : 'Yearly'}
                 </Text>
                 {p.badge ? (
-                  <View style={[badges.chip, badges.sage, styles.planBadge]}>
-                    <Text style={[badges.chipText, badges.sageText]}>{p.badge}</Text>
+                  <View style={[badges.chip, badges.gold, styles.planBadge]}>
+                    <Text style={[badges.chipText, badges.goldText]}>{p.badge}</Text>
                   </View>
                 ) : null}
               </View>
@@ -293,8 +344,20 @@ export default function PaywallScreen({
         </Text>
       ) : note ? (
         <View style={styles.honestBox}>
-          <Text style={styles.honestTitle}>{OUTCOME_COPY[note].title}</Text>
-          <Text style={styles.honestCopy}>{OUTCOME_COPY[note].copy}</Text>
+          {/* A neutral status dot: pending/failed are information, never an
+              error — nothing was charged, so nothing here is red (§3.5.4).
+              Decoration: hidden from assistive tech (the title + copy beside it
+              carry the whole meaning). */}
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            pointerEvents="none"
+            style={styles.honestDot}
+          />
+          <View style={styles.honestBody}>
+            <Text style={styles.honestTitle}>{OUTCOME_COPY[note].title}</Text>
+            <Text style={styles.honestCopy}>{OUTCOME_COPY[note].copy}</Text>
+          </View>
         </View>
       ) : (
         <Text style={styles.trialNote}>
@@ -349,10 +412,6 @@ const styles = StyleSheet.create({
     color: colors.inkSoft,
   },
   title: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: colors.ink,
-    letterSpacing: -0.3,
     marginBottom: spacing.xs,
   },
   subtitle: {
@@ -361,17 +420,27 @@ const styles = StyleSheet.create({
     color: colors.inkSoft,
     marginBottom: spacing.md,
   },
+  swatchCard: {
+    // The paywall hero (§2.2: `raised` is reserved for today's quest card, the
+    // level-up overlay and this one).
+    ...shadows.raised,
+    marginBottom: spacing.md,
+  },
   valueCard: {
     marginBottom: spacing.md,
   },
   bulletRow: {
     flexDirection: 'row',
     gap: spacing.sm,
-    marginBottom: spacing.sm,
     alignItems: 'flex-start',
   },
+  bulletRule: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.rule,
+    marginVertical: spacing.sm,
+  },
   bulletDot: {
-    color: colors.gold,
+    color: colors.goldBright,
     fontSize: 14,
     lineHeight: 22,
   },
@@ -382,11 +451,17 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontWeight: '600',
   },
-  freeNote: {
+  freeStrip: {
+    // The free-forever note as an "already yours" strip — copy verbatim.
+    marginTop: spacing.md,
+    backgroundColor: colors.sand,
+    borderRadius: radii.md,
+    padding: spacing.md,
+  },
+  freeStripText: {
     fontSize: 13,
     lineHeight: 19,
     color: colors.inkSoft,
-    marginTop: spacing.xs,
   },
   planRow: {
     flexDirection: 'row',
@@ -395,15 +470,19 @@ const styles = StyleSheet.create({
   },
   planCard: {
     flex: 1,
-    borderWidth: 1.5,
-    borderColor: colors.paperEdge,
+    // Unselected: paper surface, 2px sand border. Same border WIDTH in both
+    // states, so selecting a plan never shifts the layout.
+    borderWidth: 2,
+    borderColor: colors.sand,
     borderRadius: radii.md,
-    backgroundColor: colors.card,
+    backgroundColor: colors.paper,
     padding: spacing.md,
   },
   planCardSelected: {
+    // Selected: card surface + 2px teal border.
     borderColor: colors.teal,
-    backgroundColor: colors.tealTint,
+    backgroundColor: colors.card,
+    ...shadows.flat,
   },
   planTop: {
     flexDirection: 'row',
@@ -450,12 +529,27 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   honestBox: {
+    flexDirection: 'row',
+    gap: spacing.sm,
     backgroundColor: colors.paperDeep,
     borderWidth: 1,
     borderColor: colors.sand,
     borderRadius: radii.md,
     padding: spacing.md,
     marginTop: spacing.sm,
+  },
+  honestDot: {
+    // Neutral inkFaint (≈3.3:1 on paperDeep — a ≥3:1 meaningful graphic that
+    // reads as "here is what happened", never as a warning).
+    width: 8,
+    height: 8,
+    borderRadius: radii.pill,
+    backgroundColor: colors.inkFaint,
+    marginTop: 5,
+    flexShrink: 0,
+  },
+  honestBody: {
+    flex: 1,
   },
   honestTitle: {
     fontSize: 14,
