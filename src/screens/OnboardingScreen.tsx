@@ -208,16 +208,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRadius: radii.lg,
     padding: spacing.md,
     marginBottom: spacing.sm,
     borderWidth: 1.5,
-    borderColor: colors.border,
+    borderColor: colors.paperEdge,
   },
   pathRowSelected: {
     borderColor: colors.teal,
-    backgroundColor: colors.tealSoft,
+    backgroundColor: colors.tealTint,
   },
   pathRowDisabled: {
     opacity: 0.62,
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
     borderColor: colors.teal,
   },
   radioDisabled: {
-    borderColor: colors.border,
+    borderColor: colors.paperEdge,
   },
   radioDot: {
     width: 13,
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
   },
   finePrint: {
     marginVertical: spacing.md,
-    backgroundColor: colors.creamDeep,
+    backgroundColor: colors.paperDeep,
     borderRadius: radii.md,
     padding: spacing.md,
   },

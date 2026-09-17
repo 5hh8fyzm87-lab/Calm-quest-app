@@ -567,7 +567,7 @@ const styles = StyleSheet.create({
   },
   bootBox: {
     flex: 1,
-    backgroundColor: colors.cream,
+    backgroundColor: colors.paper,
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.lg,
@@ -581,7 +581,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   typeChip: {
-    backgroundColor: colors.tealSoft,
+    backgroundColor: colors.tealTint,
   },
   title: {
     fontSize: 24,
@@ -594,7 +594,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
   },
   verseBox: {
-    backgroundColor: colors.creamDeep,
+    backgroundColor: colors.paperDeep,
     borderRadius: radii.md,
     padding: spacing.md,
     marginBottom: spacing.md,
@@ -635,15 +635,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1.5,
-    borderColor: colors.border,
+    borderColor: colors.paperEdge,
     borderRadius: radii.md,
     padding: spacing.md,
     marginBottom: spacing.sm,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
   },
   checkRowSelected: {
     borderColor: colors.teal,
-    backgroundColor: colors.tealSoft,
+    backgroundColor: colors.tealTint,
   },
   checkText: {
     fontSize: 16,
@@ -680,10 +680,10 @@ const styles = StyleSheet.create({
     borderColor: colors.teal,
     borderRadius: radii.pill,
     paddingVertical: 14,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
   },
   performedRowSelected: {
-    backgroundColor: colors.tealSoft,
+    backgroundColor: colors.tealTint,
   },
   performedText: {
     fontSize: 16,
@@ -719,14 +719,14 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1.5,
-    borderColor: colors.border,
+    borderColor: colors.paperEdge,
     borderRadius: radii.md,
     padding: spacing.md,
     minHeight: 90,
     fontSize: 16,
     lineHeight: 22,
     color: colors.ink,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     textAlignVertical: 'top',
     marginTop: spacing.sm,
   },
@@ -769,7 +769,7 @@ const styles = StyleSheet.create({
   },
   levelCard: {
     alignSelf: 'stretch',
-    backgroundColor: colors.creamDeep,
+    backgroundColor: colors.paperDeep,
     borderRadius: radii.lg,
     padding: spacing.lg,
     alignItems: 'center',

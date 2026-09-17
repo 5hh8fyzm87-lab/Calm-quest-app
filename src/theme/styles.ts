@@ -1,18 +1,27 @@
 /**
- * Calm Quest — shared style tokens (Phase 2a).
+ * Calm Quest — shared style tokens (Phase 2a; retuned in Visual-Richness W1).
  *
- * Rounded, generous, calm: all cards use the same corner radii, shadow, and
+ * Rounded, generous, calm: all cards share corner radii, an elevation weight and
  * padding so screens feel like one family. No theme provider needed — import
  * these and the palette where used.
+ *
+ * Wave 1 (§2): three shadow weights replace the single flat shadow —
+ * `flat` (settings/list rows) · `card` (default) · `raised` (today's quest card,
+ * the level-up overlay, the paywall hero only). Elevation is information: the
+ * more a surface matters, the higher it sits. Editorial type adds a serif for
+ * reading (Platform.select → Georgia on iOS) with zero dependencies and no font
+ * assets; UI voice stays system sans with letter-spaced small caps for labels.
  */
 
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 
 import { colors } from './colors';
 
 export const radii = {
   sm: 12,
   md: 16,
+  /** Today's quest hero card (§3.2.2) */
+  hero: 20,
   lg: 24,
   pill: 999,
 } as const;
@@ -25,15 +34,103 @@ export const spacing = {
   xl: 32,
 } as const;
 
-/** Page-level container (cream background, top-safe padding via callee). */
+/**
+ * Serif family for display + reading voice. `Platform.select` with a guarded
+ * call so the module is also loadable in the node proof/QA harnesses (their
+ * react-native shim has no `select`), then an honest iOS-first default.
+ */
+const platformSelect = (
+  Platform as unknown as { select?: (spec: Record<string, string>) => string | undefined }
+).select;
+export const serifFamily: string =
+  platformSelect?.({ ios: 'Georgia', android: 'serif', default: 'serif' }) ?? 'Georgia';
+
+/** Editorial type scale (§2.4): display, reading voice, small-caps labels. */
+export const typeScale = StyleSheet.create({
+  display: {
+    fontFamily: serifFamily,
+    fontSize: 26,
+    lineHeight: 32,
+    color: colors.ink,
+    letterSpacing: -0.2,
+  },
+  displayLg: {
+    fontFamily: serifFamily,
+    fontSize: 32,
+    lineHeight: 39,
+    color: colors.ink,
+    letterSpacing: -0.3,
+  },
+  /** Verses, affirmations, glimpse prompts & entries, blessings. */
+  reading: {
+    fontFamily: serifFamily,
+    fontStyle: 'italic',
+    fontSize: 17,
+    lineHeight: 25,
+    color: colors.ink,
+  },
+  readingLg: {
+    fontFamily: serifFamily,
+    fontStyle: 'italic',
+    fontSize: 19,
+    lineHeight: 28,
+    color: colors.ink,
+  },
+  /** Datelines, chips, meta — system sans, letter-spaced, upper case. */
+  smallCaps: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
+    color: colors.inkFaint,
+  },
+  smallCapsDeep: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.9,
+    textTransform: 'uppercase',
+  },
+  /** The one ornament glyph app-wide (§2.4): a small goldBright ✦. */
+  ornament: {
+    fontSize: 11,
+    color: colors.goldBright,
+  },
+});
+
+/** Three elevation weights (§2.2) — an ink shadow, never a grey halo. */
+export const shadows = StyleSheet.create({
+  flat: {
+    shadowColor: colors.ink,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  card: {
+    shadowColor: colors.ink,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.07,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  raised: {
+    shadowColor: colors.ink,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.1,
+    shadowRadius: 28,
+    elevation: 6,
+  },
+});
+
+/** Page-level container (paper background, top-safe padding via callee). */
 export const page = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.cream,
+    backgroundColor: colors.paper,
   },
   scroll: {
     flexGrow: 1,
-    backgroundColor: colors.cream,
+    backgroundColor: colors.paper,
   },
   content: {
     padding: spacing.lg,
@@ -43,16 +140,14 @@ export const page = StyleSheet.create({
 /** Card surfaces + typography shared by Home / Onboarding. */
 export const cards = StyleSheet.create({
   card: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderRadius: radii.lg,
     padding: spacing.lg,
     marginBottom: spacing.md,
-    // Soft, consistent elevation (both platforms)
-    shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    elevation: 2,
+    // Default elevation: a sheet laid on paper (hairline + soft ink shadow)
+    ...shadows.card,
+    borderWidth: 1,
+    borderColor: colors.paperEdge,
   },
   cardRow: {
     flexDirection: 'row',
@@ -99,7 +194,7 @@ export const buttons = StyleSheet.create({
     elevation: 3,
   },
   primaryText: {
-    color: colors.white,
+    color: colors.card,
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.2,
@@ -130,7 +225,7 @@ export const badges = StyleSheet.create({
     borderRadius: radii.pill,
     paddingVertical: 6,
     paddingHorizontal: 12,
-    backgroundColor: colors.tealSoft,
+    backgroundColor: colors.tealTint,
   },
   chipText: {
     fontSize: 12,
@@ -139,13 +234,13 @@ export const badges = StyleSheet.create({
     letterSpacing: 0.3,
   },
   gold: {
-    backgroundColor: '#f4e8c8',
+    backgroundColor: colors.goldTint,
   },
   goldText: {
     color: colors.goldDeep,
   },
   sage: {
-    backgroundColor: colors.sageSoft,
+    backgroundColor: colors.sageTint,
   },
   sageText: {
     color: colors.sageDeep,
@@ -154,9 +249,7 @@ export const badges = StyleSheet.create({
     backgroundColor: colors.sand,
   },
   sandText: {
+    // Full opacity: sand + inkSoft clears contrast (never an opacity jail).
     color: colors.inkSoft,
   },
 });
-
-export { colors } from './colors';
-export type { ColorToken } from './colors';

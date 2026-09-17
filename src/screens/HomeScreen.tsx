@@ -3,19 +3,30 @@
  *
  * The daily loop opens here: today's quest (1 Quest from the bundle via pure
  * date rotation), the Affirmation of the Day, a Gratitude Glimpse entry point,
- * and a grace-toned streak chip. Phase 2b wires completion:
+ * and a grace-toned streak sprig. Phase 2b wires completion:
  *  - "Begin today's quest" → Quest screen (4 quest types, +50 XP, streak)
  *  - Affirmation card gains a "Save +5 XP" action (one per day)
  *  - Glimpse card → Glimpse screen (Phase 2c builds the full mini-game)
  *  - After completion the quest card shows its done state and the header
  *    shows XP, level and progress toward the next level.
  *
- * Phase 3 strengthens the streak chip: it derives the HONEST current position
+ * Phase 3 strengthens the streak line: it derives the HONEST current position
  * from StreakState + today (src/streaks/ui.ts) — during grace it reads
  * "Day N secured — … grace remaining" instead of the stale "secured" the
  * persisted ledger alone would show — refreshes on every focus (so a
  * completion on Quest/Glimpse is reflected on return), and adds a Settings
  * (gear) entry for the one gentle daily reminder.
+ *
+ * Visual-Richness Wave 1 (§3.2 + §4.1/§4.2, owner-approved): the header is a
+ * dateline with one theme wash clipped to the top band, the quest card is the
+ * hero (raised elevation, 20px radius, 3px theme edge, theme-tint glyph disc,
+ * vellum verse plate), the completed state is sage with a drawn kept seal, the
+ * growth strip pairs the level seal with the vine meter, the themes card is
+ * de-jailed (own tint per row, gold invitation label), and the streak line is
+ * drawn as the sprig: seedling → two leaves → stem+bud → first branch → three
+ * leaves, water drops during grace, a seed in soil with a dusk-violet halo on
+ * reset day. COPY IS UNCHANGED; every rule (grace, XP, paywall, navigation) is
+ * untouched — this wave is presentation only.
  */
 
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -61,7 +72,30 @@ import {
 } from '../subscription/gates';
 import { paywallSurface } from '../subscription/paywall';
 import { streakUi } from '../streaks/ui';
-import { badges, buttons, cards, colors, page, radii, spacing, useScreenInsets } from '../theme';
+import {
+  badges,
+  buttons,
+  cards,
+  CheckMark,
+  colors,
+  GATED_TINT_ALPHA,
+  Leaf,
+  LevelSeal,
+  Ornament,
+  page,
+  radii,
+  serifFamily,
+  shadows,
+  spacing,
+  StreakSprig,
+  themeAccents,
+  typeScale,
+  useScreenInsets,
+  VineMeter,
+  Wash,
+  withAlpha,
+} from '../theme';
+import type { ThemeAccent } from '../theme';
 import { friendlyDate, localDateString } from '../utils/daily';
 
 type Nav = NativeStackNavigationProp<AppRouteParamList, 'Home'>;
@@ -86,37 +120,87 @@ function bodyFor(quest: Quest): string {
   }
 }
 
-/** XP meter: total XP, level badge, and progress toward the next level. */
-function LevelChip({ state }: { state: AppState }) {
+/**
+ * A 40px theme-tint disc holding the theme's drawn mark (§3.2.2). Decoration
+ * only: the theme name always sits next to it as text, so nothing is carried
+ * by colour alone.
+ */
+function ThemeDisc({ theme, size = 40 }: { theme: QuestTheme; size?: number }) {
+  const accent = themeAccents[theme];
+  return (
+    <View
+      style={[
+        styles.disc,
+        { width: size, height: size, borderRadius: size / 2, backgroundColor: accent.tint },
+      ]}
+    >
+      <Leaf size={size * 0.46} color={accent.deep} rotate={-28} />
+    </View>
+  );
+}
+
+/** The verse plate: vellum, a 3px theme rule, serif italic, small-caps ref. */
+function VersePlate({
+  verse,
+  accent,
+  muted = false,
+}: {
+  verse: Verse;
+  accent: ThemeAccent;
+  muted?: boolean;
+}) {
+  return (
+    <View style={[styles.versePlate, { borderLeftColor: accent.accent }]}>
+      <Ornament style={styles.verseOrnament} />
+      <Text style={[typeScale.reading, muted && styles.verseTextMuted]}>{verse.text}</Text>
+      <Text style={[typeScale.smallCaps, styles.verseRef, muted && styles.verseRefMuted]}>
+        {verse.reference} · {verse.translation}
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * Growth strip (§3.2.4): the level seal + the vine meter, replacing the flat
+ * white level box. All copy is verbatim; the free gate keeps reading its exact
+ * honest line ("your XP is safe") because the XP genuinely keeps accruing.
+ */
+function GrowthStrip({ state }: { state: AppState }) {
   const { totalXp } = state.progress;
+  const tier = state.entitlements.tier;
   // Phase 4a (§5/F4): free users hold at most level 5 — the meter shows the
   // honest held level while XP keeps accruing (never reset, never faked).
-  const level = displayLevel(totalXp, state.entitlements.tier);
-  const gate = levelGate(totalXp, state.entitlements.tier);
+  const level = displayLevel(totalXp, tier);
+  const gate = levelGate(totalXp, tier);
   const floor = levelFloorXp(totalXp);
   const into = totalXp - floor;
   const pct = Math.min(100, Math.round((into / XP_PER_LEVEL) * 100));
   const info = levelTitleInfo(level);
   return (
-    <View style={styles.levelWrap}>
-      <View style={styles.levelTopRow}>
-        <Text style={styles.levelTitle}>
-          Level {level} · {info.title}
+    <View style={[cards.card, styles.growthStrip]}>
+      <LevelSeal level={level} size={48} />
+      <View style={styles.growthBody}>
+        <View style={styles.levelTopRow}>
+          <Text style={styles.levelTitle}>
+            Level {level} · {info.title}
+          </Text>
+          <View style={styles.xpPill}>
+            <Text style={styles.xpPillText}>{totalXp} XP</Text>
+          </View>
+        </View>
+        <View
+          accessibilityRole="progressbar"
+          accessibilityValue={{ min: 0, max: 100, now: pct, text: `${pct}%` }}
+          style={styles.vineWrap}
+        >
+          <VineMeter pct={pct} showGate={tier === 'free'} />
+        </View>
+        <Text style={styles.levelHint}>
+          {gate.gated
+            ? `${totalXp} XP and growing — levels 6–20 are part of Calm Quest+, your XP is safe.`
+            : `${into}/${XP_PER_LEVEL} XP to Level ${level + 1} · ${TOTAL_LEVELS - level} levels to the top`}
         </Text>
-        <Text style={styles.levelXp}>{totalXp} XP</Text>
       </View>
-      <View
-        accessibilityRole="progressbar"
-        accessibilityValue={{ min: 0, max: 100, now: pct, text: `${pct}%` }}
-        style={styles.meterTrack}
-      >
-        <View style={[styles.meterFill, { width: `${pct}%` }]} />
-      </View>
-      <Text style={styles.levelHint}>
-        {gate.gated
-          ? `${totalXp} XP and growing — levels 6–20 are part of Calm Quest+, your XP is safe.`
-          : `${into}/${XP_PER_LEVEL} XP to Level ${level + 1} · ${TOTAL_LEVELS - level} levels to the top`}
-      </Text>
     </View>
   );
 }
@@ -131,28 +215,34 @@ function QuestCard({
   onBegin: () => void;
 }) {
   const verse = verseFor(quest.verseId);
+  const accent = themeAccents[quest.theme];
   return (
-    <View style={[cards.card, styles.questCard]}>
+    <View
+      style={[
+        cards.card,
+        styles.questCard,
+        { borderTopColor: done ? colors.sageMark : accent.accent },
+        done && styles.questCardDone,
+      ]}
+    >
       <View style={styles.chipRow}>
-        <View style={[badges.chip, badges.sage]}>
-          <Text style={[badges.chipText, badges.sageText]}>{THEME_LABELS[quest.theme]}</Text>
+        <View style={[styles.themeChip, { backgroundColor: accent.tint }]}>
+          <Text style={[styles.themeChipText, { color: accent.deep }]}>
+            {THEME_LABELS[quest.theme]}
+          </Text>
         </View>
-        <View style={[badges.chip, styles.typeChip]}>
-          <Text style={badges.chipText}>{QUEST_TYPE_LABELS[quest.type]}</Text>
+        <View style={[badges.chip, badges.sand]}>
+          <Text style={[badges.chipText, badges.sandText]}>{QUEST_TYPE_LABELS[quest.type]}</Text>
         </View>
       </View>
-      <Text style={cards.title}>{quest.title}</Text>
+      <View style={styles.titleRow}>
+        <ThemeDisc theme={quest.theme} />
+        <Text style={styles.questTitle}>{quest.title}</Text>
+      </View>
       {!done ? (
         <>
           <Text style={[cards.subtitle, styles.body]}>{bodyFor(quest)}</Text>
-          {verse ? (
-            <View style={styles.verseBox}>
-              <Text style={styles.verseText}>{verse.text}</Text>
-              <Text style={styles.verseRef}>
-                {verse.reference} · {verse.translation}
-              </Text>
-            </View>
-          ) : null}
+          {verse ? <VersePlate verse={verse} accent={accent} /> : null}
           <Pressable
             accessibilityRole="button"
             onPress={onBegin}
@@ -164,10 +254,17 @@ function QuestCard({
         </>
       ) : (
         <View style={styles.doneBox}>
-          <Text style={styles.doneMark}>✓ Done today</Text>
+          <View style={styles.doneRow}>
+            {/* Filled kept seal (drawn disc + check) — kept, never "won". */}
+            <View style={styles.keptSeal}>
+              <CheckMark size={11} color={colors.sageTint} stroke={2} />
+            </View>
+            <Text style={styles.doneMark}>Done today</Text>
+          </View>
           <Text style={styles.doneText}>
             See you tomorrow — wherever you are, the loop waits right here.
           </Text>
+          {verse ? <VersePlate verse={verse} accent={accent} muted /> : null}
         </View>
       )}
     </View>
@@ -192,6 +289,7 @@ function BonusQuestCard({
   busy: boolean;
 }) {
   const verse = verseFor(quest.verseId);
+  const accent = themeAccents[quest.theme];
   return (
     <View style={[cards.card, styles.bonusCard]}>
       <View style={styles.chipRow}>
@@ -204,14 +302,7 @@ function BonusQuestCard({
       </View>
       <Text style={cards.title}>{quest.title}</Text>
       <Text style={[cards.subtitle, styles.body]}>{bodyFor(quest)}</Text>
-      {verse ? (
-        <View style={styles.verseBox}>
-          <Text style={styles.verseText}>{verse.text}</Text>
-          <Text style={styles.verseRef}>
-            {verse.reference} · {verse.translation}
-          </Text>
-        </View>
-      ) : null}
+      {verse ? <VersePlate verse={verse} accent={accent} /> : null}
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ disabled: busy }}
@@ -253,6 +344,8 @@ function AffirmationCard({
           <Text style={[badges.chipText, badges.goldText]}>AFFIRMATION OF THE DAY</Text>
         </View>
       </View>
+      {/* §3.2 quiet: serif reading voice + one goldBright ornament. */}
+      <Ornament style={styles.affirmOrnament} />
       <Text style={styles.affirmText}>{revealed ? text : 'Tap to reveal'}</Text>
       {revealed ? (
         saved ? (
@@ -280,46 +373,56 @@ function AffirmationCard({
   );
 }
 
-function StreakChip({ state }: { state: AppState }) {
+/**
+ * The streak line (§4.2): the drawn sprig + the verbatim STREAK_MESSAGES line.
+ * Growth is monotone here — the picture never shrinks, never reddens and never
+ * shows a broken chain; grace is water, and a reset is a seed with a violet
+ * halo. The chip wraps over two lines instead of truncating in a 48% pill.
+ */
+function StreakHeader({ state }: { state: AppState }) {
   const today = localDateString();
   const ui = streakUi(state.streak, today);
   const inGrace = ui.status === 'grace';
   const resetsToday = ui.resetsToday;
+  // A reset day: grace has exhausted (fresh start) after real missed days —
+  // the day the honest ledger starts over. Never "lost", never red.
+  const resetDay = ui.status === 'fresh' && ui.missedDays > 0;
   return (
-    <>
-      <View
-        style={[
-          badges.chip,
-          styles.streakChip,
-          inGrace && styles.streakChipGrace,
-          resetsToday && styles.streakChipResets,
-        ]}
-      >
-        <Text
+    <View style={styles.streakRow}>
+      <StreakSprig
+        days={state.streak.streakDays}
+        graceRemaining={ui.graceRemaining}
+        inGrace={inGrace}
+        resetDay={resetDay}
+        size={44}
+      />
+      <View style={styles.streakTextCol}>
+        <View
           style={[
-            badges.chipText,
-            styles.streakChipText,
-            inGrace && styles.streakChipTextGrace,
-            resetsToday && styles.streakChipTextResets,
+            styles.streakChip,
+            (inGrace || resetsToday) && styles.streakChipNotice,
+            resetsToday && styles.streakChipResets,
           ]}
         >
-          {ui.message}
-        </Text>
+          <Text style={[styles.streakChipText, (inGrace || resetsToday) && styles.streakChipTextNotice]}>
+            {ui.message}
+          </Text>
+        </View>
+        {/* A small, honest grace note below the chip — never a countdown, never
+            guilt (Flow C rule 6: neutral-positive during grace only). */}
+        {resetsToday ? (
+          <Text style={styles.graceNoteResets}>
+            Today still counts — a quiet minute whenever you're ready. And if you
+            let this day pass, that's okay too: Day 1 starts fresh when you say
+            today.
+          </Text>
+        ) : inGrace ? (
+          <Text style={styles.graceNote}>
+            Grace is holding your streak — take your time, no pressure.
+          </Text>
+        ) : null}
       </View>
-      {/* A small, honest grace note below the chip — never a countdown, never
-          guilt (Flow C rule 6: neutral-positive during grace only). */}
-      {resetsToday ? (
-        <Text style={styles.graceNoteResets}>
-          Today still counts — a quiet minute whenever you're ready. And if you
-          let this day pass, that's okay too: Day 1 starts fresh when you say
-          today.
-        </Text>
-      ) : inGrace ? (
-        <Text style={styles.graceNote}>
-          Grace is holding your streak — take your time, no pressure.
-        </Text>
-      ) : null}
-    </>
+    </View>
   );
 }
 
@@ -329,6 +432,11 @@ function StreakChip({ state }: { state: AppState }) {
 // NEVER gated — removing it from view would block play); paid users see all
 // five themes with the library peek. One calm Growth link for free — no
 // guilt, no lock icons, no dark patterns.
+//
+// Wave 1 (§3.2.5): de-jailed. Every row wears its own theme tint with a leaf
+// swatch; a gated row keeps its true name at full contrast on its tint at ~55%
+// plus a gold "Included with Calm Quest+" invitation — no padlock, no italic,
+// no opacity jail.
 // ---------------------------------------------------------------------------
 
 function ThemesCard({
@@ -359,23 +467,31 @@ function ThemesCard({
         {THEME_ORDER.map((t) => {
           const visible = themes.includes(t);
           const count = themeCounts ? themeCounts[t] : null;
+          const accent = themeAccents[t];
           return (
             <View
               key={t}
-              style={[styles.themeRow, !visible && styles.themeRowLocked]}
+              style={[
+                styles.themeRow,
+                { backgroundColor: visible ? accent.tint : withAlpha(accent.tint, GATED_TINT_ALPHA) },
+                !visible && styles.themeRowGated,
+              ]}
             >
-              <Text
-                style={[styles.themeName, !visible && styles.themeNameLocked]}
-                accessibilityLabel={visible ? `${THEME_LABELS[t]}, available` : undefined}
-              >
-                {THEME_LABELS[t]}
-              </Text>
+              <View style={styles.themeRowLeft}>
+                <Leaf size={12} color={accent.deep} rotate={-28} hollow={!visible} />
+                <Text
+                  style={styles.themeName}
+                  accessibilityLabel={visible ? `${THEME_LABELS[t]}, available` : undefined}
+                >
+                  {THEME_LABELS[t]}
+                </Text>
+              </View>
               {visible ? (
-                <Text style={styles.themeCount}>
+                <Text style={[styles.themeCount, { color: accent.deep }]}>
                   {count != null ? `${count} quest${count === 1 ? '' : 's'}` : 'today'}
                 </Text>
               ) : (
-                <Text style={styles.themeCountLocked}>with Calm Quest+</Text>
+                <Text style={styles.themePlus}>Included with Calm Quest+</Text>
               )}
             </View>
           );
@@ -428,6 +544,9 @@ export default function HomeScreen() {
   const affirmation = pickToday(affirmations, today);
   const prompt = pickToday(prompts, today);
   const friendly = friendlyDate();
+  // The day's colour: exactly one theme per screen (§5 rule 1), and exactly one
+  // wash per screen — the header bloom below.
+  const dayAccent = themeAccents[quest ? quest.theme : 'gratitude'];
 
   const questDone = !!state && state.quests.lastQuestCompletionDate === today;
   const affirmationSaved = !!state && !!affirmation && state.savedAffirmationIds.includes(affirmation.id);
@@ -505,34 +624,45 @@ export default function HomeScreen() {
       style={page.screen}
       contentContainerStyle={[page.content, styles.container, screenInsets]}
     >
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.greeting}>{friendly}</Text>
-          <Text style={styles.headline}>Today's quest</Text>
-        </View>
-        {state ? <StreakChip state={state} /> : null}
-        {/* Phase 4a: the small, dismissible Growth re-surface (day 7+). */}
-        {showGrowthButton ? (
+      {/* Header dateline (§3.2.1): small-caps date, serif headline, and the
+          day's single wash bloomed behind it, clipped to this top band. */}
+      <View style={styles.headerBand}>
+        <Wash
+          color={dayAccent.wash}
+          opacity={0.3}
+          size={340}
+          style={styles.headerWash}
+        />
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Text style={typeScale.smallCaps}>{friendly}</Text>
+            <Text style={[typeScale.display, styles.headline]}>Today's quest</Text>
+          </View>
+          {/* Phase 4a: the small, dismissible Growth re-surface (day 7+). */}
+          {showGrowthButton ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Calm Quest+ — more ways to grow"
+              onPress={() => navigation.navigate('Paywall', { source: 'growth' })}
+              style={({ pressed }) => [styles.growthBtn, pressed && styles.pressed]}
+            >
+              <Text style={styles.growthText}>Growth</Text>
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Calm Quest+ — more ways to grow"
-            onPress={() => navigation.navigate('Paywall', { source: 'growth' })}
-            style={({ pressed }) => [styles.growthBtn, pressed && styles.pressed]}
+            accessibilityLabel="Settings — daily gentle reminder"
+            onPress={() => navigation.navigate('Settings')}
+            style={({ pressed }) => [styles.gearBtn, pressed && styles.pressed]}
           >
-            <Text style={styles.growthText}>Growth</Text>
+            <Text style={styles.gearText}>⚙︎</Text>
           </Pressable>
-        ) : null}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Settings — daily gentle reminder"
-          onPress={() => navigation.navigate('Settings')}
-          style={({ pressed }) => [styles.gearBtn, pressed && styles.pressed]}
-        >
-          <Text style={styles.gearText}>⚙︎</Text>
-        </Pressable>
+        </View>
+        {state ? <StreakHeader state={state} /> : null}
+        <View style={styles.headerRule} />
       </View>
-      {state ? <LevelChip state={state} /> : null}
+
+      {state ? <GrowthStrip state={state} /> : null}
 
       {/* Today's quest */}
       {quest ? (
@@ -602,8 +732,9 @@ export default function HomeScreen() {
         />
       ) : null}
 
-      {/* Subtle Phase-1 proof footer */}
+      {/* Subtle Phase-1 proof footer — a colophon: hairline + letterspacing. */}
       <View style={styles.foot}>
+        <View style={styles.footRule} />
         <Text style={[cards.small, styles.footText]}>{CONTENT_META.note}</Text>
         <Text style={[cards.small, styles.footText]}>
           {CONTENT_COUNTS.quests} quests · {CONTENT_COUNTS.affirmations} affirmations ·{' '}
@@ -620,11 +751,27 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.xl,
   },
+  // --- Header band (wash + dateline + streak sprig) ------------------------
+  headerBand: {
+    marginTop: -spacing.lg,
+    marginHorizontal: -spacing.lg,
+    paddingTop: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+    marginBottom: spacing.md,
+    overflow: 'hidden',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.rule,
+  },
+  headerWash: {
+    top: -190,
+    left: -80,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
     gap: spacing.sm,
   },
   headerLeft: {
@@ -642,7 +789,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     paddingVertical: 6,
     paddingHorizontal: 12,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
   },
   growthText: {
     fontSize: 12,
@@ -653,93 +800,169 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: colors.inkSoft,
   },
-  greeting: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.tealDeep,
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
   headline: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: colors.ink,
-    letterSpacing: -0.3,
     marginTop: 2,
   },
-  levelWrap: {
-    backgroundColor: colors.white,
-    borderRadius: radii.md,
-    padding: spacing.sm,
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.md,
+  headerRule: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.rule,
+    marginTop: spacing.sm,
+  },
+  // --- Streak line (sprig + verbatim message) ------------------------------
+  streakRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  streakTextCol: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  streakChip: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.sageTint,
+    borderRadius: radii.pill,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    flexShrink: 1,
+  },
+  streakChipNotice: {
+    backgroundColor: colors.noticeTint,
+  },
+  streakChipResets: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.noticeDeep,
+  },
+  streakChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    lineHeight: 17,
+    color: colors.sageDeep,
+  },
+  streakChipTextNotice: {
+    color: colors.noticeDeep,
+  },
+  graceNote: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.inkSoft,
+  },
+  graceNoteResets: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.noticeDeep,
+  },
+  // --- Growth strip (level seal + vine meter) ------------------------------
+  growthStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.md,
+  },
+  growthBody: {
+    flex: 1,
+    gap: spacing.xs,
   },
   levelTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.xs,
+    gap: spacing.sm,
   },
   levelTitle: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '700',
     color: colors.ink,
+    flexShrink: 1,
   },
-  levelXp: {
-    fontSize: 13,
+  xpPill: {
+    backgroundColor: colors.goldTint,
+    borderRadius: radii.pill,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  xpPillText: {
+    fontSize: 12,
     fontWeight: '700',
     color: colors.goldDeep,
   },
-  meterTrack: {
-    height: 8,
-    borderRadius: radii.pill,
-    backgroundColor: colors.creamDeep,
-    overflow: 'hidden',
-  },
-  meterFill: {
-    height: '100%',
-    borderRadius: radii.pill,
-    backgroundColor: colors.teal,
+  vineWrap: {
+    paddingVertical: 2,
   },
   levelHint: {
-    marginTop: spacing.xs,
     fontSize: 12,
+    lineHeight: 17,
     color: colors.inkSoft,
   },
+  // --- Quest hero card ----------------------------------------------------
   chipRow: {
     flexDirection: 'row',
     gap: spacing.sm,
     marginBottom: spacing.sm,
   },
   questCard: {
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: radii.hero,
+    borderTopWidth: 3,
+    paddingTop: spacing.md,
+    // `raised`: the three surfaces that matter most (§2.2) — this is one.
+    ...shadows.raised,
   },
-  typeChip: {
-    backgroundColor: colors.tealSoft,
+  questCardDone: {
+    backgroundColor: colors.sageTint,
+    borderTopColor: colors.sageMark,
+  },
+  themeChip: {
+    borderRadius: radii.pill,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  themeChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  disc: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  questTitle: {
+    flex: 1,
+    fontFamily: serifFamily,
+    fontSize: 24,
+    lineHeight: 30,
+    color: colors.ink,
+    letterSpacing: -0.2,
   },
   body: {
     marginTop: spacing.xs,
     marginBottom: spacing.sm,
   },
-  verseBox: {
-    backgroundColor: colors.creamDeep,
+  versePlate: {
+    backgroundColor: colors.vellum,
+    borderLeftWidth: 3,
     borderRadius: radii.md,
     padding: spacing.md,
     marginBottom: spacing.md,
   },
-  verseText: {
-    fontSize: 15,
-    fontStyle: 'italic',
-    lineHeight: 23,
-    color: colors.ink,
+  verseOrnament: {
+    marginBottom: spacing.xs,
+  },
+  verseTextMuted: {
+    color: colors.inkSoft,
   },
   verseRef: {
     marginTop: spacing.xs,
-    fontSize: 12,
     color: colors.inkSoft,
+  },
+  verseRefMuted: {
+    color: colors.inkFaint,
   },
   beginBtn: {
     marginTop: spacing.xs,
@@ -749,33 +972,47 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   doneBox: {
-    marginTop: spacing.md,
-    backgroundColor: colors.tealSoft,
-    borderRadius: radii.md,
-    padding: spacing.md,
+    marginTop: spacing.xs,
+    gap: spacing.xs,
+  },
+  doneRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.xs,
+  },
+  keptSeal: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.sageMark,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   doneMark: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: colors.tealDeep,
+    fontSize: 17,
+    fontFamily: serifFamily,
+    color: colors.sageDeep,
   },
   doneText: {
-    marginTop: spacing.xs,
     fontSize: 13,
     lineHeight: 19,
     color: colors.inkSoft,
-    textAlign: 'center',
   },
+  // --- Affirmation (serif + one ornament only) -----------------------------
   affirmCard: {
-    backgroundColor: colors.tealSoft,
+    backgroundColor: colors.tealTint,
     borderWidth: 1.5,
-    borderColor: '#c9e0da',
+    borderColor: withAlpha(colors.teal, 0.28),
+  },
+  affirmOrnament: {
+    marginTop: spacing.xs,
   },
   affirmText: {
-    fontSize: 20,
-    lineHeight: 28,
-    fontWeight: '700',
+    fontFamily: serifFamily,
+    fontStyle: 'italic',
+    fontSize: 19,
+    lineHeight: 27,
+    fontWeight: '600',
     color: colors.tealDeep,
     marginTop: spacing.xs,
     marginBottom: spacing.xs,
@@ -788,14 +1025,14 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     paddingVertical: 10,
     paddingHorizontal: 16,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     borderWidth: 1.5,
     borderColor: colors.teal,
     marginTop: spacing.xs,
   },
   saveChipSaved: {
-    backgroundColor: colors.sageSoft,
-    borderColor: colors.sage,
+    backgroundColor: colors.sageTint,
+    borderColor: colors.sageMark,
   },
   saveChipText: {
     fontSize: 13,
@@ -805,10 +1042,9 @@ const styles = StyleSheet.create({
   saveChipTextSaved: {
     color: colors.sageDeep,
   },
+  // --- Glimpse + bonus entry cards ----------------------------------------
   glimpseCard: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: colors.card,
   },
   glimpseTitle: {
     fontSize: 17,
@@ -816,6 +1052,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   glimpsePrompt: {
+    fontFamily: serifFamily,
     fontSize: 15,
     lineHeight: 22,
     fontStyle: 'italic',
@@ -828,12 +1065,11 @@ const styles = StyleSheet.create({
   bonusCard: {
     borderWidth: 1.5,
     borderColor: colors.gold,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
   },
+  // --- Themes (de-jailed) --------------------------------------------------
   themesCard: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: colors.card,
   },
   themeGrid: {
     gap: spacing.xs,
@@ -843,88 +1079,54 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.creamDeep,
+    gap: spacing.sm,
     borderRadius: radii.md,
     paddingVertical: 10,
     paddingHorizontal: spacing.md,
   },
-  themeRowLocked: {
-    backgroundColor: colors.cream,
+  themeRowGated: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: withAlpha(colors.gold, 0.35),
+  },
+  themeRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flexShrink: 1,
   },
   themeName: {
     fontSize: 15,
     fontWeight: '700',
     color: colors.ink,
   },
-  themeNameLocked: {
-    color: colors.inkSoft,
-    fontWeight: '600',
-  },
   themeCount: {
     fontSize: 12,
     fontWeight: '600',
-    color: colors.tealDeep,
   },
-  themeCountLocked: {
+  themePlus: {
     fontSize: 12,
-    color: colors.inkSoft,
-    fontStyle: 'italic',
+    fontWeight: '600',
+    color: colors.goldDeep,
+    flexShrink: 1,
+    textAlign: 'right',
   },
   themeCta: {
     marginTop: spacing.xs,
     alignSelf: 'stretch',
   },
-  streakChip: {
-    alignSelf: 'center',
-    backgroundColor: colors.sageSoft,
-    maxWidth: '48%',
-    flexShrink: 1,
-  },
-  streakChipGrace: {
-    backgroundColor: colors.creamDeep,
-    borderWidth: 1,
-    borderColor: colors.sand,
-  },
-  streakChipResets: {
-    backgroundColor: colors.creamDeep,
-    borderWidth: 1,
-    borderColor: colors.softCoral,
-  },
-  streakChipText: {
-    color: colors.sageDeep,
-  },
-  streakChipTextGrace: {
-    color: colors.inkSoft,
-  },
-  streakChipTextResets: {
-    color: colors.inkSoft,
-  },
-  graceNote: {
-    marginTop: spacing.xs,
-    fontSize: 12,
-    lineHeight: 17,
-    color: colors.inkSoft,
-    textAlign: 'center',
-    maxWidth: '68%',
-    alignSelf: 'center',
-  },
-  graceNoteResets: {
-    marginTop: spacing.xs,
-    fontSize: 12,
-    lineHeight: 17,
-    color: colors.softCoral,
-    textAlign: 'center',
-    maxWidth: '68%',
-    alignSelf: 'center',
-  },
+  // --- Colophon -----------------------------------------------------------
   foot: {
     marginTop: spacing.lg,
     gap: spacing.xs,
   },
+  footRule: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.rule,
+    marginBottom: spacing.xs,
+  },
   footText: {
     textAlign: 'center',
+    letterSpacing: 0.3,
   },
   pressed: {
     opacity: 0.88,
