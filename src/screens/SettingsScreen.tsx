@@ -36,6 +36,15 @@
  * install → Onboarding; the GDPR-relevant in-app data note is honest about
  * backend deletion arriving later), and in-app Privacy & Terms mirroring the
  * site pages (/privacy, /terms).
+ *
+ * Visual-Richness wave 3 (§3.6): still the quietest page in the app — section
+ * labels in small-caps `inkFaint` over a 24px gold hairline, cards on the flat
+ * shadow, a drawn bell on the reminder card and a drawn note on the sound card
+ * (`tealTint` disc, mark in `tealDeep` — drawn, never emoji), a `goldBright`
+ * top edge plus the filled tier chip and a miniature echo of the paywall's
+ * five-theme swatch strip on the Calm Quest+ card, and legal rows whose chevron
+ * is drawn and colourless. Presentation only: every setting, every honest note
+ * and every approved string behaves exactly as before.
  */
 
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -54,6 +63,7 @@ import {
 } from 'react-native';
 
 import { analytics } from '../analytics';
+import { THEME_LABELS } from '../content';
 import type { AppRouteParamList } from '../navigation/types';
 import {
   canDeliverReminders,
@@ -69,9 +79,29 @@ import {
   isPaid,
   reconciledEntitlement,
   subscriptionService,
+  THEME_ORDER,
+  visibleThemes,
   type UnavailableReason,
 } from '../subscription';
-import { badges, buttons, cards, colors, page, radii, spacing, useScreenInsets } from '../theme';
+import {
+  badges,
+  BellMark,
+  buttons,
+  cards,
+  ChevronMark,
+  colors,
+  NoteMark,
+  page,
+  radii,
+  SectionHead,
+  shadows,
+  spacing,
+  ThemeSwatchStrip,
+  typeScale,
+  useScreenInsets,
+} from '../theme';
+import type { ThemeSwatchItem } from '../theme';
+import { localDateString } from '../utils/daily';
 
 const COPY = {
   title: 'Settings',
@@ -303,6 +333,16 @@ export default function SettingsScreen() {
   const t = parseReminderTime(time);
   const timeLabel = formatReminderTime(t);
 
+  // The Calm Quest+ card's mini swatch strip (§3.6.3) uses the same REAL gate
+  // derivation as the paywall and Home: paid holds all five, free holds today's
+  // theme. `tier` here is the reconciled, persisted truth — never a guess.
+  const heldThemes = visibleThemes({ entitlements: { tier } }, localDateString());
+  const swatchItems: ThemeSwatchItem[] = THEME_ORDER.map((theme) => ({
+    theme,
+    name: THEME_LABELS[theme],
+    available: heldThemes.includes(theme),
+  }));
+
   /** Persist prefs, then sync the single OS schedule. */
   async function applyPrefs(nextEnabled: boolean, nextTime: string) {
     setSaving(true);
@@ -508,16 +548,17 @@ export default function SettingsScreen() {
         >
           <Text style={styles.backText}>‹ Back</Text>
         </Pressable>
-        <Text style={styles.title}>{COPY.title}</Text>
+        <Text style={[typeScale.display, styles.title]}>{COPY.title}</Text>
         <View style={styles.backBtn} />
       </View>
 
       {/* Gentle reminder */}
-      <Text style={cards.label}>{COPY.section}</Text>
+      <SectionHead label={COPY.section} style={styles.sectionHead} />
       <Text style={styles.blurb}>{COPY.blurb}</Text>
 
       <View style={[cards.card, styles.reminderCard]}>
         <View style={styles.row}>
+          <BellMark size={28} />
           <View style={styles.rowText}>
             <Text style={styles.rowTitle}>{effectiveOn ? COPY.on : COPY.off}</Text>
             <Text style={styles.rowSub}>
@@ -597,9 +638,10 @@ export default function SettingsScreen() {
       {/* Phase 5 (F9): sound on/off. Persisted intent — honestly labeled: no
           bundled audio plays yet (the MVP pause quest is silent and the
           reminder is muted), so this pref is saved and ready to wire. */}
-      <Text style={cards.label}>{COPY.soundSection}</Text>
+      <SectionHead label={COPY.soundSection} style={styles.sectionHead} />
       <View style={[cards.card, styles.reminderCard]}>
         <View style={styles.row}>
+          <NoteMark size={28} />
           <View style={styles.rowText}>
             <Text style={styles.rowTitle}>
               {soundEnabled ? COPY.soundOn : COPY.soundOff}
@@ -629,19 +671,25 @@ export default function SettingsScreen() {
       {/* Phase 4b — Calm Quest+ section (§5). Honest tier display; restore +
           manage are honestly stubbed at the seam. No upgrade pressure here —
           this section informs; it never sells. */}
-      <Text style={cards.label}>{COPY.plusSection}</Text>
+      <SectionHead label={COPY.plusSection} style={styles.sectionHead} />
       <View style={[cards.card, styles.plusCard]}>
         <View style={styles.row}>
           <View style={styles.rowText}>
             <Text style={styles.rowTitle}>{tier === 'paid' ? COPY.tierPaid : COPY.tierFree}</Text>
             <Text style={styles.rowSub}>{COPY.tierNote}</Text>
           </View>
-          <View style={[badges.chip, tier === 'paid' ? badges.sage : badges.sand]}>
-            <Text style={[badges.chipText, tier === 'paid' ? badges.sageText : badges.sandText]}>
+          {/* Filled tier chip: PLUS in the gold family, FREE on sand. */}
+          <View style={[badges.chip, tier === 'paid' ? badges.gold : badges.sand]}>
+            <Text style={[badges.chipText, tier === 'paid' ? badges.goldText : badges.sandText]}>
               {tier === 'paid' ? 'PLUS' : 'FREE'}
               </Text>
           </View>
         </View>
+
+        {/* A miniature echo of the paywall's swatch row (§3.6.3): the same real
+            availability at mark scale. Decorative — the tier chip and the line
+            above already say this in words. */}
+        <ThemeSwatchStrip items={swatchItems} style={styles.plusSwatches} />
 
         <View style={styles.plusActions}>
           <Pressable
@@ -683,7 +731,7 @@ export default function SettingsScreen() {
           "coming soon" note; NEVER a fabricated signed-out state). Delete my
           data is REAL and local: it wipes every persisted byte and the app
           starts fresh at Onboarding. */}
-      <Text style={cards.label}>{COPY.accountSection}</Text>
+      <SectionHead label={COPY.accountSection} style={styles.sectionHead} />
       <Text style={styles.blurb}>{COPY.signInNote}</Text>
       <View style={[cards.card, styles.reminderCard]}>
         {authAvailable ? (
@@ -721,8 +769,9 @@ export default function SettingsScreen() {
         <Text style={styles.deleteSub}>{COPY.deleteDataSub}</Text>
       </View>
 
-      {/* Phase 5 (F9): in-app Privacy & Terms — mirror of the site pages. */}
-      <Text style={cards.label}>{COPY.legalSection}</Text>
+      {/* Phase 5 (F9): in-app Privacy & Terms — mirror of the site pages.
+          The chevron is drawn and colourless: a legal row carries no hue. */}
+      <SectionHead label={COPY.legalSection} style={styles.sectionHead} />
       <View style={[cards.card, styles.reminderCard]}>
         <Pressable
           accessibilityRole="button"
@@ -730,7 +779,7 @@ export default function SettingsScreen() {
           style={({ pressed }) => [styles.legalRow, pressed && styles.pressed]}
         >
           <Text style={styles.legalRowText}>{COPY.privacyRow}</Text>
-          <Text style={styles.legalChevron}>›</Text>
+          <ChevronMark />
         </Pressable>
         <View style={styles.accountDivider} />
         <Pressable
@@ -739,7 +788,7 @@ export default function SettingsScreen() {
           style={({ pressed }) => [styles.legalRow, pressed && styles.pressed]}
         >
           <Text style={styles.legalRowText}>{COPY.termsRow}</Text>
-          <Text style={styles.legalChevron}>›</Text>
+          <ChevronMark />
         </Pressable>
       </View>
 
@@ -773,9 +822,9 @@ const styles = StyleSheet.create({
     color: colors.tealDeep,
   },
   title: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: colors.ink,
+    // Wraps instead of overflowing at XXXL: it sits between two fixed spacers.
+    flex: 1,
+    textAlign: 'center',
   },
   blurb: {
     fontSize: 15,
@@ -784,9 +833,18 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     marginBottom: spacing.sm,
   },
+  sectionHead: {
+    // §3.6.1 — small-caps inkFaint over a 24px gold hairline, spaced off the
+    // card above it. Quiet grouping chrome: every string inside the card below
+    // repeats the same meaning in `ink`/`inkSoft`.
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+  },
   reminderCard: {
+    // §3.6.2 — Settings cards take the flat shadow (list elevation, not hero).
     borderWidth: 1,
     borderColor: colors.paperEdge,
+    ...shadows.flat,
   },
   row: {
     flexDirection: 'row',
@@ -864,6 +922,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.paperEdge,
     alignItems: 'center',
+    ...shadows.flat,
   },
   pickerHint: {
     fontSize: 12,
@@ -893,8 +952,16 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   plusCard: {
+    // §3.6.3 — the Calm Quest+ card carries a gold top edge (paint, gold
+    // family) over the flat elevation, plus the tier chip and swatch strip.
     borderWidth: 1,
     borderColor: colors.paperEdge,
+    borderTopWidth: 3,
+    borderTopColor: colors.goldBright,
+    ...shadows.flat,
+  },
+  plusSwatches: {
+    marginTop: spacing.md,
   },
   plusActions: {
     marginTop: spacing.md,
@@ -966,10 +1033,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: colors.ink,
-  },
-  legalChevron: {
-    fontSize: 18,
-    color: colors.inkSoft,
+    flexShrink: 1,
   },
   pressed: {
     opacity: 0.88,

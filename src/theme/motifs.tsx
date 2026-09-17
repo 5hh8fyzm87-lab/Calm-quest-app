@@ -31,8 +31,9 @@ import {
 } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 
-import { colors, withAlpha } from './colors';
-import { badges, buttons, serifFamily, spacing } from './styles';
+import type { QuestTheme } from '../models/types';
+import { colors, GATED_TINT_ALPHA, themeAccents, withAlpha } from './colors';
+import { badges, buttons, serifFamily, spacing, typeScale } from './styles';
 
 // ---------------------------------------------------------------------------
 // Primitives
@@ -195,14 +196,21 @@ export function nextStageForLevel(level: number): GrowthStage | null {
   return GROWTH_STAGES[i + 1] ?? null;
 }
 
-/** A drawn sprout: stem + two leaves (§3.1 path rows, §4.1 faint stages). */
+/**
+ * A drawn sprout: stem + two leaves (§3.1 path rows, §4.1 faint stages).
+ * `hollow` draws it outline-only — wave 3 uses that for the coming-soon path
+ * rows, where "not yet" is carried by the fill and the glyph weight rather than
+ * by an opacity jail over the label.
+ */
 export function Sprout({
   size = 20,
   color = colors.sageDeep,
+  hollow = false,
   style,
 }: {
   size?: number;
   color?: string;
+  hollow?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   const stemW = Math.max(1.6, size * 0.11);
@@ -217,19 +225,23 @@ export function Sprout({
           width: stemW,
           height: size * 0.62,
           borderRadius: stemW / 2,
-          backgroundColor: color,
+          backgroundColor: hollow ? 'transparent' : color,
+          borderWidth: hollow ? 1 : 0,
+          borderColor: color,
         }}
       />
       <Leaf
         size={leaf}
         color={color}
         rotate={-26}
+        hollow={hollow}
         style={{ position: 'absolute', left: size * 0.5 - leaf * 0.95, top: size * 0.42 }}
       />
       <Leaf
         size={leaf}
         color={color}
         rotate={26}
+        hollow={hollow}
         style={{ position: 'absolute', left: size * 0.5 + leaf * 0.12, top: size * 0.5 }}
       />
     </Mark>
@@ -1009,6 +1021,371 @@ export function LevelUpOverlay({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Wave 3 — Onboarding (§3.1) · Paywall (§3.5) · Settings (§3.6)
+//
+// Same rules as waves 1–2: plain `View`/`Text` art, no dependency, no hooks,
+// every decorative mark a11y-hidden and touch-transparent, every state-bearing
+// glyph in a `deep` ink, and no product copy invented here (labels arrive as
+// props). The one thing wave 3 adds is a handful of *labelled* blocks — a
+// section head, a "Coming soon" chip, a theme swatch row — which are real text
+// (so they stay visible to assistive tech) wrapped around drawn marks.
+// ---------------------------------------------------------------------------
+
+/** Length of the gold hairline under a section label (§3.6.1). */
+export const GOLD_RULE_WIDTH = 24;
+
+/** The 24px `goldBright` hairline (§3.6.1 section labels, §3.6.3 card edge). */
+export function GoldRule({
+  width = GOLD_RULE_WIDTH,
+  color = colors.goldBright,
+  style,
+}: {
+  width?: number;
+  color?: string;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return <Mark style={[styles.goldRule, { width, backgroundColor: color }, style]} />;
+}
+
+/**
+ * A section label (§3.6.1): small-caps `inkFaint` over a 24px gold hairline.
+ * Real text, so it is NOT a11y-hidden — and it announces itself as a heading so
+ * VoiceOver's rotor can jump between sections. (Section labels are quiet
+ * grouping chrome: every string inside the card below repeats the same meaning
+ * in `ink`/`inkSoft`, which is where the contrast floor is held.)
+ */
+export function SectionHead({ label, style }: { label: string; style?: StyleProp<ViewStyle> }) {
+  return (
+    <View style={[styles.sectionHead, style]}>
+      <Text style={typeScale.smallCaps} accessibilityRole="header">
+        {label}
+      </Text>
+      <GoldRule style={styles.sectionHeadRule} />
+    </View>
+  );
+}
+
+/**
+ * The visible "Coming soon" chip (§3.1.2 — the one approved copy addition).
+ * `sand`/`inkSoft` at FULL opacity: availability is carried by the row's fill
+ * and the glyph's weight, never by an opacity jail over the label. The chip
+ * itself sits on `card` with a hairline so it stays readable on a `sand` row.
+ */
+export function ComingSoonChip({
+  label,
+  style,
+}: {
+  label: string;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <View style={[badges.chip, styles.comingSoonChip, style]}>
+      <Text style={[badges.chipText, badges.sandText]}>{label}</Text>
+    </View>
+  );
+}
+
+/**
+ * A drawn bell — the reminder card's glyph (§3.6.2). Drawn from `View`s, never
+ * an emoji: a `tealTint` disc holding the bell in `tealDeep` (a `tealTint` bell
+ * on card would be ~1.05:1, and state-bearing marks use a `deep`).
+ */
+export function BellMark({
+  size = 28,
+  disc = colors.tealTint,
+  color = colors.tealDeep,
+  style,
+}: {
+  size?: number;
+  disc?: string;
+  color?: string;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const bodyW = size * 0.46;
+  const bodyH = size * 0.34;
+  const knob = size * 0.1;
+  const clapper = Math.max(2, size * 0.1);
+  return (
+    <Mark
+      style={[
+        styles.glyphDisc,
+        { width: size, height: size, borderRadius: size / 2, backgroundColor: disc },
+        style,
+      ]}
+    >
+      {/* knob */}
+      <View
+        style={{
+          position: 'absolute',
+          left: (size - knob) / 2,
+          top: size * 0.17,
+          width: knob,
+          height: knob,
+          borderRadius: knob / 2,
+          backgroundColor: color,
+        }}
+      />
+      {/* body — wide shoulders, flat base */}
+      <View
+        style={{
+          position: 'absolute',
+          left: (size - bodyW) / 2,
+          top: size * 0.25,
+          width: bodyW,
+          height: bodyH,
+          borderTopLeftRadius: bodyW * 0.5,
+          borderTopRightRadius: bodyW * 0.5,
+          borderBottomLeftRadius: 2,
+          borderBottomRightRadius: 2,
+          backgroundColor: color,
+        }}
+      />
+      {/* rim */}
+      <View
+        style={{
+          position: 'absolute',
+          left: (size - size * 0.6) / 2,
+          top: size * 0.62,
+          width: size * 0.6,
+          height: Math.max(1.5, size * 0.06),
+          borderRadius: size,
+          backgroundColor: color,
+        }}
+      />
+      {/* clapper */}
+      <View
+        style={{
+          position: 'absolute',
+          left: (size - clapper) / 2,
+          top: size * 0.71,
+          width: clapper,
+          height: clapper,
+          borderRadius: clapper / 2,
+          backgroundColor: color,
+        }}
+      />
+    </Mark>
+  );
+}
+
+/**
+ * A drawn note — the sound card's glyph (§3.6.2). Same disc treatment as the
+ * bell: `tealTint` disc, the mark itself in `tealDeep`, no emoji anywhere.
+ */
+export function NoteMark({
+  size = 28,
+  disc = colors.tealTint,
+  color = colors.tealDeep,
+  style,
+}: {
+  size?: number;
+  disc?: string;
+  color?: string;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const stemW = Math.max(1.6, size * 0.075);
+  const head = size * 0.2;
+  return (
+    <Mark
+      style={[
+        styles.glyphDisc,
+        { width: size, height: size, borderRadius: size / 2, backgroundColor: disc },
+        style,
+      ]}
+    >
+      {/* stem */}
+      <View
+        style={{
+          position: 'absolute',
+          left: size * 0.44,
+          top: size * 0.26,
+          width: stemW,
+          height: size * 0.42,
+          borderRadius: stemW / 2,
+          backgroundColor: color,
+        }}
+      />
+      {/* flags */}
+      <View
+        style={{
+          position: 'absolute',
+          left: size * 0.44 + stemW,
+          top: size * 0.26,
+          width: size * 0.22,
+          height: Math.max(1.5, size * 0.06),
+          borderRadius: 2,
+          backgroundColor: color,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          left: size * 0.44 + stemW,
+          top: size * 0.4,
+          width: size * 0.16,
+          height: Math.max(1.5, size * 0.06),
+          borderRadius: 2,
+          backgroundColor: color,
+        }}
+      />
+      {/* head */}
+      <View
+        style={{
+          position: 'absolute',
+          left: size * 0.3,
+          top: size * 0.62,
+          width: head * 1.15,
+          height: head,
+          borderRadius: head / 2,
+          backgroundColor: color,
+        }}
+      />
+    </Mark>
+  );
+}
+
+/**
+ * A drawn "more" chevron — a rotated corner, replacing the `›` glyph so the app
+ * keeps exactly two typographic marks (✦ and ⚙︎, §5 rule 6). Neutral by design:
+ * the legal rows carry no hue at all.
+ */
+export function ChevronMark({
+  size = 9,
+  color = colors.inkFaint,
+  stroke = 2,
+  style,
+}: {
+  size?: number;
+  color?: string;
+  stroke?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <Mark
+      style={[
+        {
+          width: size,
+          height: size,
+          borderTopWidth: stroke,
+          borderRightWidth: stroke,
+          borderColor: color,
+          borderTopRightRadius: 2,
+          transform: [{ rotate: '45deg' }],
+        },
+        style,
+      ]}
+    />
+  );
+}
+
+/**
+ * One entry in a theme swatch row: the real theme, its real name from content,
+ * and whether the user actually has it right now (§3.5.1). The screen owns the
+ * availability derivation — this file never guesses what a user holds.
+ */
+export interface ThemeSwatchItem {
+  theme: QuestTheme;
+  name: string;
+  available: boolean;
+}
+
+/**
+ * The five-theme swatch row (§3.5.1 — the paywall hero). Available themes are
+ * filled in their own tint with a solid leaf; the rest wear their tint at ~55%
+ * with a `goldBright` hairline and an outline-only leaf — the exact visual
+ * grammar Home already uses for gated themes, so the money screen tells the
+ * truth with the real names and the real tints and nothing else.
+ */
+export function ThemeSwatchRow({
+  items,
+  size = 34,
+  style,
+}: {
+  items: readonly ThemeSwatchItem[];
+  size?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const leaf = size * 0.5;
+  return (
+    <View style={[styles.swatchRow, style]}>
+      {items.map((item) => {
+        const accent = themeAccents[item.theme];
+        return (
+          <View key={item.theme} style={styles.swatchItem}>
+            <Mark
+              style={[
+                styles.swatchDisc,
+                {
+                  width: size,
+                  height: size,
+                  borderRadius: size / 2,
+                  backgroundColor: item.available
+                    ? accent.tint
+                    : withAlpha(accent.tint, GATED_TINT_ALPHA),
+                  borderWidth: item.available ? 0 : 1,
+                  borderColor: item.available ? 'transparent' : colors.goldBright,
+                },
+              ]}
+            >
+              <Leaf size={leaf} color={accent.deep} rotate={-28} hollow={!item.available} />
+            </Mark>
+            <Text
+              style={[styles.swatchName, { color: item.available ? accent.deep : colors.inkSoft }]}
+              accessibilityLabel={`${item.name}, ${
+                item.available ? 'available' : 'included with Calm Quest+'
+              }`}
+            >
+              {item.name}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+/**
+ * The miniature echo of the swatch row (§3.6.3, the Calm Quest+ card). Purely
+ * decorative: it repeats the same real availability in ten-pixel marks, while
+ * the tier chip and the tier line right next to it say the same thing in words.
+ */
+export function ThemeSwatchStrip({
+  items,
+  size = 12,
+  style,
+}: {
+  items: readonly ThemeSwatchItem[];
+  size?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <Mark style={[styles.swatchStrip, style]}>
+      {items.map((item) => {
+        const accent = themeAccents[item.theme];
+        return (
+          <View
+            key={item.theme}
+            style={[
+              styles.swatchStripMark,
+              {
+                width: size,
+                height: size * 0.62,
+                borderRadius: size,
+                backgroundColor: item.available
+                  ? accent.tint
+                  : withAlpha(accent.tint, GATED_TINT_ALPHA),
+                borderWidth: item.available ? 0 : 1,
+                borderColor: item.available ? 'transparent' : colors.goldBright,
+              },
+            ]}
+          />
+        );
+      })}
+    </Mark>
+  );
+}
+
 const styles = StyleSheet.create({
   ornamentRow: {
     flexDirection: 'row',
@@ -1186,6 +1563,60 @@ const styles = StyleSheet.create({
   },
   overlayBtn: {
     marginTop: spacing.lg,
+  },
+  // --- Wave 3 (Onboarding / Paywall / Settings) -----------------------------
+  goldRule: {
+    height: 2,
+    borderRadius: 1,
+  },
+  sectionHead: {
+    alignSelf: 'stretch',
+  },
+  sectionHeadRule: {
+    marginTop: spacing.xs,
+  },
+  comingSoonChip: {
+    // On `card` with a hairline: the chip stays readable on a `sand` row, and
+    // its label sits at full `inkSoft` opacity (no jail, §1c).
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.paperEdge,
+  },
+  glyphDisc: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  swatchRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  swatchItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  swatchDisc: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  swatchName: {
+    // No numberOfLines / no fixed size: at XXXL the name wraps and the art
+    // steps aside, so nothing is ever clipped.
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    textAlign: 'center',
+  },
+  swatchStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  swatchStripMark: {
+    flexShrink: 0,
   },
   pressed: {
     opacity: 0.88,
