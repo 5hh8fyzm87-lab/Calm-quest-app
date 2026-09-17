@@ -712,12 +712,16 @@ check(
 // ---------------------------------------------------------------------------
 check(
   '§3.6 settings: section labels are SectionHeads (small-caps over a gold hairline), not plain card labels',
-  (SET.match(/<SectionHead label=\{COPY\./g) || []).length === 5 && !/cards\.label/.test(SET),
+  (SET.match(/<SectionHead label=\{COPY\./g) || []).length === 6 &&
+    /<SectionHead label=\{COPY\.keptSection\}/.test(SET) &&
+    !/cards\.label/.test(SET),
   String((SET.match(/<SectionHead label=\{COPY\./g) || []).length),
 );
 check(
   '§3.6 settings: all five section heads carry the shared spacing style',
-  (SET.match(/<SectionHead label=\{COPY\.\w+\} style=\{styles\.sectionHead\} \/>/g) || []).length === 5,
+  // build 13 adds a sixth Settings section (KEPT & READING); every one of them
+  // still wears the same shared spacing style.
+  (SET.match(/<SectionHead label=\{COPY\.\w+\} style=\{styles\.sectionHead\} \/>/g) || []).length === 6,
 );
 check(
   '§3.6 settings: cards take the `flat` shadow (elevation is information, not decoration)',
@@ -760,7 +764,8 @@ check(
 );
 check(
   '§3.6 settings: legal rows use the drawn chevron and the old \u203a text style is gone',
-  (SET.match(/<ChevronMark \/>/g) || []).length === 2 && !/legalChevron/.test(SET),
+  // Two legal rows + build 13's two read-only doors (Kept / Verse). All drawn.
+  (SET.match(/<ChevronMark \/>/g) || []).length === 4 && !/legalChevron/.test(SET),
 );
 check(
   '§3.6 settings: the title uses the serif display token and wraps at XXXL instead of overflowing',
