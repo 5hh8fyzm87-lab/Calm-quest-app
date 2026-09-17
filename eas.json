@@ -17,6 +17,13 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "6812833521",
+        "ascApiKeyPath": "/etc/calmquest-asc/AuthKey_QD98DBUN5T.p8",
+        "ascApiKeyId": "QD98DBUN5T",
+        "ascApiKeyIssuerId": "ddc41553-914d-4e01-9052-29a173c600c0"
+      }
+    }
   }
 }
