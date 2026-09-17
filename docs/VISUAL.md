@@ -85,6 +85,7 @@ npx tsc --noEmit
 node scripts/proof-wave1-visual.js        # tokens + contrast + rendered motif trees
 node scripts/proof-wave2-visual.js        # Quest §3.3 / Glimpse §3.4 / overlay §4.3
 node scripts/proof-wave3-visual.js        # Onboarding §3.1 / Paywall §3.5 / Settings §3.6 + a11y
+node scripts/proof-settings-upgrade.js    # the Settings upgrade entry point (post-wave-3)
 for f in scripts/proof-phase*.js scripts/qa-*.js; do node "$f" || echo "FAILED $f"; done
 ```
 
@@ -180,8 +181,9 @@ the same hairline in `goldBright`.
 
 Presentation only, again: the onboarding flow and its storage path, every gate, the
 purchase seam, the reminder scheduler, the delete-my-data path and every approved string
-behave exactly as before. The only **copy** change in the whole app is the one the owner
-approved — the visible `Coming soon` chip on the two disabled onboarding rows.
+behave exactly as before. The only **copy** changes in the whole app are the two the owner
+approved — the visible `Coming soon` chip on the two disabled onboarding rows, and (Sep
+2026, post-wave-3) the Settings upgrade label `Upgrade to Calm Quest+`.
 
 ## New primitives (`src/theme/motifs.tsx`)
 
@@ -226,7 +228,8 @@ approved — the visible `Coming soon` chip on the two disabled onboarding rows.
   Calm Quest+ card carries a 3px `goldBright` top edge with the filled tier chip
   (`PLUS` gold / `FREE` sand) and the mini swatch strip, the legal rows use the drawn
   chevron, and the delete row is the only place `brick` appears (text only). The title
-  takes `flex: 1` + centred so it wraps at XXXL between its two spacers.
+  takes `flex: 1` + centred so it wraps at XXXL between its two spacers. Since Sep 2026 a
+  FREE user's card also holds the upgrade door (below).
 
 ## The accessibility sweep (all three screens)
 
@@ -247,5 +250,36 @@ approved — the visible `Coming soon` chip on the two disabled onboarding rows.
   heads with no fixed height) and the Settings title wraps instead of overflowing.
 - **Reduce Motion:** wave 3 adds **no motion at all**. `LightBloom` (wave 2) remains the
   app's only animated device and still consults `AccessibilityInfo.isReduceMotionEnabled`.
+
+---
+
+# Post-wave-3 — the Settings upgrade entry point (owner request, Sep 2026)
+
+After the build-11 device review the owner found a real gap: a FREE user's Settings Calm
+Quest+ card named their tier and showed which themes they held, but the only route to the
+paywall ran through gated content. The card now carries **one** upgrade affordance, and
+nothing else on the screen changed.
+
+| Piece | What it is |
+|---|---|
+| `src/components/UpgradeInvitation.tsx` | The door: a `Pressable` built on `buttons.ghost`, so it keeps secondary-CTA parity with the Restore / Manage rows it sits above. `goldTint` paint under a 1px `gold` hairline, label in `goldDeep` (5.58:1 on the fill, 6.19:1 on `card`), trailing `ChevronMark` in `goldDeep`. Hooks-free, stateless, and copy-free — the label is a prop, the tap is forwarded, and it owns no purchase logic. |
+| Settings COPY | `upgrade: 'Upgrade to Calm Quest+',` — the one approved copy addition, in exactly one file in `src/`. |
+| Settings render site | `{loaded && tier === 'free' ? <UpgradeInvitation … /> : null}`, between the mini swatch strip and the Restore / Manage rows. PLUS users render no upgrade affordance at all — not even for the instant before the first load resolves, because the persisted tier is a precondition. |
+| Settings handler | `onUpgrade()` — one `navigation.navigate('Paywall', { source: 'growth' })`, the same route + source the gated content (Home's gated theme rows, the Quest / Glimpse gates) already uses. `source: 'auto'` is never used from Settings: that surface belongs to the post-3rd-loop modal alone. The paywall file, its flow, the gates, IAP and grace rules are untouched. |
+
+Two design notes worth keeping:
+
+1. **Height parity, not a bigger button.** The 1px hairline is paid back out of the vertical
+   padding (14 − 1), so the invitation is exactly the same height as the ghost rows under
+   it. An invitation, not a louder CTA — no urgency, no badge, no countdown, no padlock.
+2. **A purchase needs no restart.** The card's tier is read from the persisted snapshot
+   inside `useFocusEffect`, and a verified purchase still lands through the single honest
+   writer (`runTrialFlow` → `applyEntitlement` → `saveState`). Returning to Settings after a
+   successful purchase therefore re-renders as PLUS on its own. That behavior is pre-existing
+   and is *verified*, not rebuilt: `scripts/proof-settings-upgrade.js` (30 checks, added with
+   the door) asserts both halves of the chain plus the render contract — the button's role and
+   exact accessible name, the hidden chevron, the gold family, the computed contrast floors,
+   the tap forwarding, the FREE-only guard, the unchanged PLUS rows and the shared paywall
+   route.
 
 
