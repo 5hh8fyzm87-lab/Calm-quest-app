@@ -533,7 +533,7 @@ export default function SettingsScreen() {
             value={enabled && !perturbed}
             onValueChange={(v) => void onToggle(v)}
             trackColor={{ false: colors.sand, true: colors.teal }}
-            thumbColor={colors.white}
+            thumbColor={colors.card}
           />
         </View>
 
@@ -613,7 +613,7 @@ export default function SettingsScreen() {
             value={soundEnabled}
             onValueChange={(v) => void onSoundChange(v)}
             trackColor={{ false: colors.sand, true: colors.teal }}
-            thumbColor={colors.white}
+            thumbColor={colors.card}
           />
         </View>
       </View>
@@ -786,7 +786,7 @@ const styles = StyleSheet.create({
   },
   reminderCard: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.paperEdge,
   },
   row: {
     flexDirection: 'row',
@@ -811,7 +811,7 @@ const styles = StyleSheet.create({
   timeBlock: {
     marginTop: spacing.md,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.paperEdge,
     paddingTop: spacing.md,
   },
   timeLabel: {
@@ -826,7 +826,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.creamDeep,
+    backgroundColor: colors.paperDeep,
     borderRadius: radii.md,
     paddingVertical: 12,
     paddingHorizontal: spacing.md,
@@ -844,7 +844,7 @@ const styles = StyleSheet.create({
   },
   lockedBox: {
     marginTop: spacing.md,
-    backgroundColor: colors.creamDeep,
+    backgroundColor: colors.paperDeep,
     borderRadius: radii.md,
     padding: spacing.md,
     gap: spacing.xs,
@@ -862,7 +862,7 @@ const styles = StyleSheet.create({
   },
   pickerCard: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.paperEdge,
     alignItems: 'center',
   },
   pickerHint: {
@@ -879,7 +879,7 @@ const styles = StyleSheet.create({
   },
   finePrint: {
     marginTop: spacing.md,
-    backgroundColor: colors.creamDeep,
+    backgroundColor: colors.paperDeep,
     borderRadius: radii.md,
     padding: spacing.md,
   },
@@ -894,7 +894,7 @@ const styles = StyleSheet.create({
   },
   plusCard: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.paperEdge,
   },
   plusActions: {
     marginTop: spacing.md,
@@ -905,7 +905,7 @@ const styles = StyleSheet.create({
   },
   plusNoteBox: {
     marginTop: spacing.sm,
-    backgroundColor: colors.creamDeep,
+    backgroundColor: colors.paperDeep,
     borderRadius: radii.md,
     padding: spacing.md,
   },
@@ -921,7 +921,7 @@ const styles = StyleSheet.create({
     color: colors.inkSoft,
   },
   logoutNoteBox: {
-    backgroundColor: colors.creamDeep,
+    backgroundColor: colors.paperDeep,
     borderRadius: radii.md,
     padding: spacing.md,
     gap: 2,
@@ -938,14 +938,17 @@ const styles = StyleSheet.create({
   },
   accountDivider: {
     height: 1,
-    backgroundColor: colors.border,
+    backgroundColor: colors.paperEdge,
     marginVertical: spacing.md,
   },
   deleteBtn: {
     alignSelf: 'stretch',
   },
   deleteBtnText: {
-    color: colors.softCoral,
+    // §1c: destructive is `brick` and appears in exactly one place — this row
+    // (the tone fix that replaced the old `softCoral` here, which read as a
+    // warning colour rather than "this is the one destructive action").
+    color: colors.brick,
   },
   deleteSub: {
     fontSize: 12,

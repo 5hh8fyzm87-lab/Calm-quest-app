@@ -32,10 +32,10 @@ const navTheme: Theme = {
   dark: false,
   colors: {
     primary: colors.teal,
-    background: colors.cream,
-    card: colors.cream,
+    background: colors.paper,
+    card: colors.paper,
     text: colors.ink,
-    border: colors.border,
+    border: colors.paperEdge,
     notification: colors.gold,
   },
   fonts: {
@@ -70,7 +70,7 @@ export default function RootNavigator() {
 
   if (!ready) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.cream, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ flex: 1, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator color={colors.teal} size="large" />
       </View>
     );

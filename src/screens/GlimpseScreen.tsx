@@ -578,9 +578,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.teal,
   },
   tickDim: {
-    backgroundColor: colors.creamDeep,
+    backgroundColor: colors.paperDeep,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.paperEdge,
   },
   ringCenter: {
     alignItems: 'center',
@@ -605,14 +605,14 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1.5,
-    borderColor: colors.border,
+    borderColor: colors.paperEdge,
     borderRadius: radii.md,
     padding: spacing.md,
     minHeight: 90,
     fontSize: 16,
     lineHeight: 22,
     color: colors.ink,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     textAlignVertical: 'top',
   },
   inputFocused: {
@@ -654,7 +654,7 @@ const styles = StyleSheet.create({
   },
   entryBox: {
     alignSelf: 'stretch',
-    backgroundColor: colors.creamDeep,
+    backgroundColor: colors.paperDeep,
     borderRadius: radii.md,
     padding: spacing.md,
     marginBottom: spacing.md,
@@ -698,7 +698,7 @@ const styles = StyleSheet.create({
   },
   bootBox: {
     flex: 1,
-    backgroundColor: colors.cream,
+    backgroundColor: colors.paper,
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.lg,

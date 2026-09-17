@@ -396,14 +396,14 @@ const styles = StyleSheet.create({
   planCard: {
     flex: 1,
     borderWidth: 1.5,
-    borderColor: colors.border,
+    borderColor: colors.paperEdge,
     borderRadius: radii.md,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
     padding: spacing.md,
   },
   planCardSelected: {
     borderColor: colors.teal,
-    backgroundColor: colors.tealSoft,
+    backgroundColor: colors.tealTint,
   },
   planTop: {
     flexDirection: 'row',
@@ -450,7 +450,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   honestBox: {
-    backgroundColor: colors.creamDeep,
+    backgroundColor: colors.paperDeep,
     borderWidth: 1,
     borderColor: colors.sand,
     borderRadius: radii.md,
