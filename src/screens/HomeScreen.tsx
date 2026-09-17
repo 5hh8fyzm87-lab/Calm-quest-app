@@ -61,7 +61,7 @@ import {
 } from '../subscription/gates';
 import { paywallSurface } from '../subscription/paywall';
 import { streakUi } from '../streaks/ui';
-import { badges, buttons, cards, colors, page, radii, spacing } from '../theme';
+import { badges, buttons, cards, colors, page, radii, spacing, useScreenInsets } from '../theme';
 import { friendlyDate, localDateString } from '../utils/daily';
 
 type Nav = NativeStackNavigationProp<AppRouteParamList, 'Home'>;
@@ -396,6 +396,9 @@ function ThemesCard({
 
 export default function HomeScreen() {
   const navigation = useNavigation<Nav>();
+
+  // Safe-area fix: additive device inset on top of the design padding.
+  const screenInsets = useScreenInsets(spacing.lg, spacing.xl);
   const today = localDateString();
   const [state, setState] = useState<AppState | null>(null);
   // Phase 4b: brief lock while the bonus completion persists (no double-tap).
@@ -500,7 +503,7 @@ export default function HomeScreen() {
   return (
     <ScrollView
       style={page.screen}
-      contentContainerStyle={[page.content, styles.container]}
+      contentContainerStyle={[page.content, styles.container, screenInsets]}
     >
       {/* Header */}
       <View style={styles.header}>

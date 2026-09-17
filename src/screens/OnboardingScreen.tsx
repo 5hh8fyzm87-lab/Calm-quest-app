@@ -19,7 +19,7 @@ import type { AppRouteParamList } from '../navigation/types';
 import { PATH_LABELS } from '../content';
 import { loadState, saveState } from '../storage/store';
 import type { AppState } from '../storage/store';
-import { badges, buttons, cards, colors, page, radii, spacing } from '../theme';
+import { badges, buttons, cards, colors, page, radii, spacing, useScreenInsets } from '../theme';
 
 const HERO_COPY =
   'Faith-first mindset training, made playful. One gentle quest a day — miss a day and you pick up right where you left off.';
@@ -76,6 +76,9 @@ function PathRow({
 
 export default function OnboardingScreen() {
   const navigation = useNavigation<Nav>();
+
+  // Safe-area fix: additive device inset on top of the design padding.
+  const screenInsets = useScreenInsets(spacing.xl, spacing.xl);
   const [busy, setBusy] = useState(false);
 
   // Christian is preselected per Flow A step 2; the other rows are disabled.
@@ -112,7 +115,7 @@ export default function OnboardingScreen() {
   return (
     <ScrollView
       style={page.screen}
-      contentContainerStyle={[page.content, styles.container]}
+      contentContainerStyle={[page.content, styles.container, screenInsets]}
     >
       {/* Hero */}
       <View style={styles.hero}>

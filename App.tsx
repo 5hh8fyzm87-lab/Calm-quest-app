@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+
 import { configureNotifications, ensureAndroidChannel, syncScheduledReminder } from './src/notifications/reminders';
 import RootNavigator from './src/navigation/RootNavigator';
 import { loadState } from './src/storage/store';
@@ -30,9 +32,9 @@ export default function App() {
   }, []);
 
   return (
-    <>
+    <SafeAreaProvider>
       <RootNavigator />
       <StatusBar style="dark" />
-    </>
+    </SafeAreaProvider>
   );
 }

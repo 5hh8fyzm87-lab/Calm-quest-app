@@ -18,7 +18,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AppRouteParamList } from '../navigation/types';
-import { colors, page, radii, spacing } from '../theme';
+import { colors, page, radii, spacing, useScreenInsets } from '../theme';
 
 export type LegalDoc = 'privacy' | 'terms';
 
@@ -140,10 +140,13 @@ export default function PrivacyTermsScreen({
   route: { params: { doc: LegalDoc } };
 }) {
   const navigation = useNavigation<NativeStackNavigationProp<AppRouteParamList, 'PrivacyTerms'>>();
+
+  // Safe-area fix: additive device inset on top of the design padding.
+  const screenInsets = useScreenInsets(spacing.lg, spacing.xl);
   const doc = route.params.doc;
   const blocks = doc === 'privacy' ? PRIVACY_DOC : TERMS_DOC;
   return (
-    <ScrollView style={page.screen} contentContainerStyle={[page.content, styles.container]}>
+    <ScrollView style={page.screen} contentContainerStyle={[page.content, styles.container, screenInsets]}>
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
