@@ -14,15 +14,25 @@
  *    broken chain, no flame, no red, no decreasing number.
  *  - Decorative marks are hidden from assistive tech (`accessibilityElementsHidden`)
  *    and never swallow touches (`pointerEvents="none"`).
- *  - All art is static: no animation, hence nothing to gate on Reduce Motion
- *    in this wave.
+ *  - Wave 1 art is static. Wave 2 adds exactly ONE motion device — the level-up
+ *    light bloom (§4.3, the owner's replacement for confetti): a single ~900ms
+ *    opacity fade, never looping, disabled under Reduce Motion.
  */
 
+import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Animated,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 
 import { colors, withAlpha } from './colors';
+import { badges, buttons, serifFamily, spacing } from './styles';
 
 // ---------------------------------------------------------------------------
 // Primitives
@@ -77,13 +87,22 @@ export function Wash({
   );
 }
 
-/** Hairline `rule` + a small `goldBright` ✦ — the only ornament app-wide (§2.4). */
-export function Ornament({ style }: { style?: StyleProp<ViewStyle> }) {
+/**
+ * Hairline `rule` + a small `goldBright` ✦ — the only ornament app-wide (§2.4).
+ * `ruleColor` lets the peak moments (§4.3) carry the same hairline in gold.
+ */
+export function Ornament({
+  ruleColor = colors.rule,
+  style,
+}: {
+  ruleColor?: string;
+  style?: StyleProp<ViewStyle>;
+}) {
   return (
     <Mark style={[styles.ornamentRow, style]}>
-      <View style={[styles.ornamentRule, styles.ornamentFlex]} />
+      <View style={[styles.ornamentRule, styles.ornamentFlex, { backgroundColor: ruleColor }]} />
       <Text style={styles.ornamentStar}>✦</Text>
-      <View style={[styles.ornamentRule, styles.ornamentFlex]} />
+      <View style={[styles.ornamentRule, styles.ornamentFlex, { backgroundColor: ruleColor }]} />
     </Mark>
   );
 }
@@ -690,6 +709,306 @@ export function StreakSprig({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Wave 2 — the peak moments (§3.3 Quest · §3.4 Glimpse · §4.3 level-up overlay)
+// ---------------------------------------------------------------------------
+
+/**
+ * The ambient tick ring (§3.4.1; the same device rings the Quest pause digits,
+ * §3.3.3). Ticks are radial hairlines: `lit` of them wear the focus hue and the
+ * rest stay `rule` — a soft clock, never a dial with a deadline. Static: it
+ * redraws from real elapsed seconds, and nothing here breathes or pulses.
+ */
+export function TickRing({
+  lit,
+  total,
+  size,
+  radius,
+  tick = 3,
+  color,
+  trackColor = colors.rule,
+  style,
+}: {
+  lit: number;
+  total: number;
+  size: number;
+  radius: number;
+  tick?: number;
+  color: string;
+  trackColor?: string;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const center = size / 2;
+  const on = Math.max(0, Math.min(total, Math.round(lit)));
+  const ticks = [];
+  for (let i = 0; i < total; i += 1) {
+    const angle = (i / total) * Math.PI * 2 - Math.PI / 2;
+    const x = center + radius * Math.cos(angle) - tick * 0.5;
+    const y = center + radius * Math.sin(angle) - tick * 1.3;
+    ticks.push(
+      <View
+        key={i}
+        style={[
+          styles.tickBar,
+          {
+            left: x,
+            top: y,
+            width: tick,
+            height: tick * 2.6,
+            backgroundColor: i < on ? color : trackColor,
+            transform: [{ rotate: `${(i / total) * 360}deg` }],
+          },
+        ]}
+      />,
+    );
+  }
+  return <Mark style={[styles.tickRing, { width: size, height: size }, style]}>{ticks}</Mark>;
+}
+
+/**
+ * The kept seal (§3.3.4 quest done, §3.4 sage settle): a calm ring holding the
+ * drawn check. Sage = kept, gold = value. No trophy, no number, no score.
+ */
+export function KeptSeal({
+  size = 56,
+  tone = 'sage',
+  style,
+}: {
+  size?: number;
+  tone?: 'sage' | 'gold';
+  style?: StyleProp<ViewStyle>;
+}) {
+  const ink = tone === 'sage' ? colors.sageDeep : colors.goldDeep;
+  const fill = tone === 'sage' ? colors.sageTint : colors.goldTint;
+  return (
+    <Mark
+      style={[
+        styles.keptSeal,
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: fill,
+          borderColor: withAlpha(ink, 0.35),
+        },
+        style,
+      ]}
+    >
+      <CheckMark size={size * 0.34} color={ink} stroke={Math.max(2, size * 0.05)} />
+    </Mark>
+  );
+}
+
+/**
+ * A small stem that gains a leaf (§3.3.4 "a small stem that gains one leaf on
+ * completion", §3.4.2 "a bud at the ring's base that gains a leaf on save").
+ * `leaves` is the honest count actually drawn: the art never disagrees with how
+ * many times the thing has really been kept.
+ */
+export function StemMark({
+  leaves = 1,
+  bud = false,
+  size = 30,
+  color = colors.sageDeep,
+  soil = colors.rule,
+  style,
+}: {
+  leaves?: number;
+  bud?: boolean;
+  size?: number;
+  color?: string;
+  soil?: string;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const stemW = Math.max(1.8, size * 0.075);
+  const soilTop = size * 0.9;
+  const leafSize = size * 0.42;
+  const budSize = size * 0.24;
+  const count = Math.max(0, Math.floor(leaves));
+  return (
+    <Mark style={[{ width: size, height: size }, style]}>
+      {/* Soil line — the same ground every stage in this app grows from. */}
+      <View
+        style={{
+          position: 'absolute',
+          left: size * 0.14,
+          top: soilTop,
+          width: size * 0.72,
+          height: 1,
+          backgroundColor: soil,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          left: (size - stemW) / 2,
+          top: size * 0.3,
+          width: stemW,
+          height: Math.max(1, soilTop - size * 0.3),
+          borderRadius: stemW / 2,
+          backgroundColor: color,
+        }}
+      />
+      {Array.from({ length: count }).map((_, i) => {
+        const right = i % 2 === 1;
+        return (
+          <Leaf
+            key={i}
+            size={leafSize}
+            color={color}
+            rotate={right ? 26 : -26}
+            style={{
+              position: 'absolute',
+              left: right ? size * 0.5 + leafSize * 0.08 : size * 0.5 - leafSize * 1.08,
+              top: size * (0.4 + i * 0.26),
+            }}
+          />
+        );
+      })}
+      {bud ? (
+        <View
+          style={{
+            position: 'absolute',
+            left: (size - budSize) / 2,
+            top: size * 0.3 - budSize * 0.5,
+            width: budSize,
+            height: budSize,
+            borderRadius: budSize / 2,
+            borderWidth: 1,
+            borderColor: color,
+            backgroundColor: withAlpha(color, 0.35),
+          }}
+        />
+      ) : null}
+    </Mark>
+  );
+}
+
+/**
+ * The light bloom that replaces confetti (§4.3, owner decision). One soft
+ * opacity fade — ~900ms, no loop, no particles, no sound — and under Reduce
+ * Motion the light is simply already there, so nothing moves at all.
+ * Layered translucent discs stand in for a gradient (no dependency): the
+ * stacked alphas fall off toward the edge so the bloom has no hard rim.
+ */
+export const BLOOM_MS = 900;
+/** Concentric discs: outermost first. Alpha per disc, not per animation. */
+export const BLOOM_LAYERS: readonly { scale: number; alpha: number }[] = [
+  { scale: 1, alpha: 0.05 },
+  { scale: 0.72, alpha: 0.06 },
+  { scale: 0.46, alpha: 0.07 },
+  { scale: 0.24, alpha: 0.08 },
+];
+
+export function LightBloom({
+  color = colors.goldBright,
+  size = 620,
+  style,
+}: {
+  color?: string;
+  size?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    let active = true;
+    const settle = () => anim.setValue(1);
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((reduce) => {
+        if (!active) return;
+        // Reduce Motion (§4.3): no animation — the light is simply present.
+        if (reduce) {
+          settle();
+          return;
+        }
+        Animated.timing(anim, {
+          toValue: 1,
+          duration: BLOOM_MS,
+          useNativeDriver: true,
+        }).start();
+      })
+      .catch(() => settle());
+    return () => {
+      active = false;
+    };
+  }, [anim]);
+  return (
+    <Mark style={[styles.bloomField, style]}>
+      {BLOOM_LAYERS.map((layer) => {
+        const d = size * layer.scale;
+        return (
+          <Animated.View
+            key={layer.scale}
+            style={[
+              styles.bloomLayer,
+              {
+                width: d,
+                height: d,
+                borderRadius: d / 2,
+                backgroundColor: color,
+                opacity: anim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, layer.alpha],
+                }),
+              },
+            ]}
+          />
+        );
+      })}
+    </Mark>
+  );
+}
+
+/**
+ * The level-up overlay (§4.3, Flow D peak moment) — full-screen, one wash of
+ * light, one CTA. ALL copy arrives as props from the screen (the level title,
+ * the blessing verbatim, the tier note, the dismiss label), so this file never
+ * invents a word of product copy.
+ */
+export function LevelUpOverlay({
+  level,
+  title,
+  blessing,
+  tierNote,
+  dismissLabel,
+  onDismiss,
+  style,
+}: {
+  level: number;
+  title: string;
+  blessing: string;
+  tierNote: string;
+  dismissLabel: string;
+  onDismiss: () => void;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <View style={[styles.overlayRoot, style]}>
+      <LightBloom />
+      <View style={[badges.chip, badges.gold, styles.overlayChip]}>
+        <Text style={[badges.chipText, badges.goldText]}>LEVEL {level}</Text>
+      </View>
+      <StageGlyph
+        stage={stageForLevel(level)}
+        size={120}
+        color={colors.sageDeep}
+        style={styles.overlayGlyph}
+      />
+      <Ornament ruleColor={withAlpha(colors.goldBright, 0.6)} style={styles.overlayOrnament} />
+      <Text style={styles.overlayTitle}>{title}</Text>
+      <Text style={styles.overlayBlessing}>{blessing}</Text>
+      <Text style={styles.overlayTierNote}>{tierNote}</Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onDismiss}
+        style={({ pressed }) => [buttons.ghost, styles.overlayBtn, pressed && styles.pressed]}
+      >
+        <Text style={buttons.ghostText}>{dismissLabel}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   ornamentRow: {
     flexDirection: 'row',
@@ -792,5 +1111,83 @@ const styles = StyleSheet.create({
     top: '11%',
     backgroundColor: colors.noticeTint,
     borderWidth: 1,
+  },
+  // --- Wave 2 (peak moments) ------------------------------------------------
+  tickRing: {
+    position: 'relative',
+  },
+  tickBar: {
+    position: 'absolute',
+    borderRadius: 1,
+  },
+  keptSeal: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  bloomField: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bloomLayer: {
+    position: 'absolute',
+  },
+  overlayRoot: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.paper,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  overlayChip: {
+    alignSelf: 'center',
+    marginBottom: spacing.md,
+  },
+  overlayGlyph: {
+    marginBottom: spacing.xs,
+  },
+  overlayOrnament: {
+    alignSelf: 'stretch',
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  overlayTitle: {
+    fontFamily: serifFamily,
+    fontSize: 34,
+    lineHeight: 40,
+    color: colors.goldDeep,
+    letterSpacing: -0.4,
+    textAlign: 'center',
+  },
+  overlayBlessing: {
+    fontFamily: serifFamily,
+    fontStyle: 'italic',
+    fontSize: 18,
+    lineHeight: 27,
+    color: colors.ink,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+  },
+  overlayTierNote: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.inkSoft,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+  },
+  overlayBtn: {
+    marginTop: spacing.lg,
+  },
+  pressed: {
+    opacity: 0.88,
   },
 });

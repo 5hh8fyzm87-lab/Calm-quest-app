@@ -1,9 +1,9 @@
-# Calm Quest — visual system (Visual-Richness Wave 1)
+# Calm Quest — visual system (Visual-Richness Waves 1–2)
 
 Companion to `/home/team/shared/visual-direction.md` (the owner-approved design spec).
 This file is the **code-side contract** for the token retune and the drawn motifs, so
-waves 2–3 (Quest / Glimpse / level-up overlay; Onboarding / Paywall / Settings) reuse
-the same primitives instead of inventing new ones.
+wave 3 (Onboarding / Paywall / Settings) reuses the same primitives instead of
+inventing new ones.
 
 ## Hard constraints (owner decisions, Sep 2026)
 
@@ -83,6 +83,7 @@ dusk-violet halo. No withered plant, no broken chain, no flame, no red anywhere.
 ```bash
 npx tsc --noEmit
 node scripts/proof-wave1-visual.js        # tokens + contrast + rendered motif trees
+node scripts/proof-wave2-visual.js        # Quest §3.3 / Glimpse §3.4 / overlay §4.3
 for f in scripts/proof-phase*.js scripts/qa-*.js; do node "$f" || echo "FAILED $f"; done
 ```
 
@@ -90,3 +91,72 @@ for f in scripts/proof-phase*.js scripts/qa-*.js; do node "$f" || echo "FAILED $
 trees, so it fails if a mark loses its accessibility hints, a grace drop stops matching
 `graceRemaining`, the vine loses its 15 gold gate marks, or the gated theme label loses
 its invitation copy.
+
+`scripts/proof-wave2-visual.js` does the same for the wave-2 art and additionally
+traverses the **level-up overlay** (the blessing is asserted against
+`levelTitleInfo(n).blessing`, the title against a 34px serif style, the CTA as the only
+button), so it fails if the bloom stops being a single ≤1.2s fade, the overlay stops
+being full-screen, a saved Glimpse stops gaining its leaf (0 → 1), or any red/confetti
+sneaks in. `LightBloom` is the one hook-owning mark: the traversal records it as a leaf
+instead of invoking it, and its contract is asserted from `BLOOM_MS` / `BLOOM_LAYERS` +
+source.
+
+---
+
+# Wave 2 — the peak moments (§3.3 Quest · §3.4 Glimpse · §4.3 level-up overlay)
+
+Presentation only: grace rules, XP, the paywall, timers, navigation and every approved
+string are untouched. The two screens keep their `screenInsets` on every scroll
+container (asserted by the proof).
+
+## New primitives (`src/theme/motifs.tsx`)
+
+| Export | What it draws |
+|---|---|
+| `TickRing({ lit, total, size, radius, tick, color, trackColor })` | the ambient tick ring — radial hairlines, `lit` of them in the focus hue, the rest `rule`. Used twice: the Glimpse ring (`tick 4`) and the Pause plate (`tick 3`). Static: it redraws from real elapsed seconds; nothing breathes or pulses. |
+| `KeptSeal({ size, tone })` | a calm ring holding the drawn check (`CheckMark`, never a ✓ glyph); `sage` = kept, `gold` = value. Replaces the old `✓` text on both done cards. |
+| `StemMark({ leaves, bud, size, color })` | a small stem whose drawn leaf count is the honest count: `bud: true, leaves: 0` is the Glimpse bud at the ring's base; `leaves: 1` is the same mark after a save / after a completed quest. |
+| `LightBloom({ color, size, style })` | the one motion device in the app: a single `Animated` opacity fade over `BLOOM_MS = 900`, layered translucent discs standing in for a gradient. No loop, no particles, no sound; under Reduce Motion `isReduceMotionEnabled()` settles it instantly so nothing moves. |
+| `LevelUpOverlay({ level, title, blessing, tierNote, dismissLabel, onDismiss })` | the full-screen peak moment: paper field, one bloom, `LEVEL n` chip, a 120px `StageGlyph`, a `goldBright` hairline + ✦, the title in serif 34px, the blessing, the tier note, one ghost CTA. **All copy arrives as props** — the art file never invents product text. |
+
+`Ornament` gained an optional `ruleColor` (default `rule`) so the peak moment can carry
+the same hairline in `goldBright`.
+
+## The screens
+
+- **QuestScreen** grid: the theme chip is filled with its own `tint`/`deep`, the type chip
+  stays neutral (`sand` + `inkSoft`), the title is `typeScale.display` (serif 26). The
+  verse plate is `vellum` + 3px theme rule + `typeScale.readingLg` (serif italic 19) +
+  small-caps reference + `goldBright` ✦, attribution verbatim. Selected check-in rows take
+  the theme accent/tint with a **filled leaf** in `deep`; the Act pill fills with the
+  theme tint and draws a leaf; Pause digits sit in a soft stillness plate ringed by
+  `TickRing` (no breath framing anywhere); the Write input is a `vellum` sheet with a
+  theme hairline and a theme accent on focus. The completion card is `KeptSeal` (sage) +
+  a gold `+50 XP` pill + a stem with the leaf it just gained.
+- **GlimpseScreen**: the ring's lit ticks are gratitude amber and settle to **sage** when
+  the minute completes; the track is `rule` hairlines; one amber wash (30%) sits behind
+  the ring; a bud at the ring's base gains its leaf on save; the prompt is serif 20 with
+  a ✦ above it; the entry box and the shown-back entry are `vellum` keepsakes with the
+  theme left rule. Cap/gate states keep their exact copy, the Calm Quest+ line moves onto
+  a `goldTint` strip and the ghost CTA gets a gold hairline. No confetti, no sound cue,
+  no countdown bar, and the ring is never red.
+- **Level-up overlay** is rendered by `QuestScreen` only when a real level-up happened
+  (`result.leveledUp && !result.levelGated` — the free gate keeps its own card), as an
+  absolute layer over the scroll body. Dismissing it runs the same
+  `leaveAfterCompletion()` as before, so the one-time paywall still fires first when it
+  was queued.
+
+### Deliberate reads of the spec (worth knowing)
+
+1. **Pause plate = stillness, always.** §3.3.3 names stillness blue for the Pause digits,
+   and a Pause quest's own theme is not always `stillness`. The plate therefore uses
+   `themeAccents.stillness` on every pause quest, giving that screen the day's theme plus
+   stillness — and no gold ornament is added to the pause body, so the pair stays quiet.
+2. **Glyphs became drawn art.** The `✓` in both done cards and in the Act pill is gone
+   (the design keeps exactly two typographic marks, ✦ and ⚙︎); it is replaced by
+   `KeptSeal`/`Leaf`. Prose is untouched: the Act label still reads "I did it".
+3. **The XP pill splits one line.** The completion card now shows `+50 XP` as the gold
+   pill and the frozen streak line beneath it, so `STREAK_MESSAGES.secured(n)` renders
+   byte-identically ("Day N secured — whenever you're ready") without the old `·`
+   separator.
+

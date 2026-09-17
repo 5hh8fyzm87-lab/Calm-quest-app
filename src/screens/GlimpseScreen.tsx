@@ -45,7 +45,24 @@ import { glimpseForDate, loadState, saveGlimpse } from '../storage/store';
 import type { AppState } from '../storage/store';
 import { paywallSurface } from '../subscription/paywall';
 import { glimpseCapReached } from '../subscription/gates';
-import { badges, buttons, cards, colors, page, radii, spacing, useScreenInsets } from '../theme';
+import {
+  KeptSeal,
+  Ornament,
+  StemMark,
+  TickRing,
+  Wash,
+  badges,
+  buttons,
+  cards,
+  colors,
+  page,
+  radii,
+  spacing,
+  themeAccents,
+  typeScale,
+  useScreenInsets,
+  withAlpha,
+} from '../theme';
 import { localDateString } from '../utils/daily';
 
 /** Ambient ring length: ~60 seconds of gentle ticks. Never a hard stop. */
@@ -53,6 +70,11 @@ const RING_SECONDS = 60;
 const RING_TICKS = 48;
 const RING_SIZE = 132;
 const RING_RADIUS = 56;
+/** The soft amber bloom behind the ring (§3.4.1) — this screen's one wash. */
+const RING_WASH_SIZE = 210;
+const RING_WASH_OFFSET = (RING_SIZE - RING_WASH_SIZE) / 2;
+/** The day's theme for a gratitude glimpse: amber paint, amber ink (§1b). */
+const GRATITUDE = themeAccents.gratitude;
 
 /**
  * Gentle completion lines, grace-toned: no outcomes promised, no guilt,
@@ -77,39 +99,46 @@ type Nav = NativeStackNavigationProp<AppRouteParamList, 'Glimpse'>;
 // ---------------------------------------------------------------------------
 
 function AmbientRing({ elapsed }: { elapsed: number }) {
+  // §3.4.1: lit ticks are gratitude amber while the minute unfolds and settle
+  // to SAGE once it is complete — kept, not "won". Track ticks stay `rule`
+  // hairlines, and the ring is never red at any point.
+  const settled = elapsed >= RING_SECONDS;
   const lit = Math.min(
     RING_TICKS,
     Math.floor((Math.min(elapsed, RING_SECONDS) / RING_SECONDS) * RING_TICKS),
   );
-  const center = RING_SIZE / 2;
-  const ticks = [];
-  for (let i = 0; i < RING_TICKS; i += 1) {
-    const angle = (i / RING_TICKS) * Math.PI * 2 - Math.PI / 2;
-    const x = center + RING_RADIUS * Math.cos(angle) - 3;
-    const y = center + RING_RADIUS * Math.sin(angle) - 3;
-    ticks.push(
-      <View
-        key={i}
-        style={[styles.tick, { left: x, top: y }, i < lit ? styles.tickLit : styles.tickDim]}
-      />,
-    );
-  }
   return (
-    <View
-      accessibilityRole="progressbar"
-      accessibilityValue={{
-        min: 0,
-        max: RING_SECONDS,
-        now: Math.min(elapsed, RING_SECONDS),
-        text: elapsed < RING_SECONDS ? 'a quiet minute, still unfolding' : 'a quiet minute, complete — take your time',
-      }}
-      style={styles.ring}
-    >
-      {ticks}
-      <View style={styles.ringCenter}>
-        <Text style={styles.ringCenterText}>
-          {elapsed < RING_SECONDS ? 'a quiet\nminute' : 'take your\ntime'}
-        </Text>
+    <View style={styles.ringWrap}>
+      <Wash
+        color={GRATITUDE.wash}
+        size={RING_WASH_SIZE}
+        opacity={0.3}
+        style={styles.ringWash}
+      />
+      <View
+        accessibilityRole="progressbar"
+        accessibilityValue={{
+          min: 0,
+          max: RING_SECONDS,
+          now: Math.min(elapsed, RING_SECONDS),
+          text: elapsed < RING_SECONDS ? 'a quiet minute, still unfolding' : 'a quiet minute, complete — take your time',
+        }}
+        style={styles.ring}
+      >
+        <TickRing
+          lit={lit}
+          total={RING_TICKS}
+          size={RING_SIZE}
+          radius={RING_RADIUS}
+          tick={4}
+          color={settled ? colors.sageMark : GRATITUDE.accent}
+          trackColor={colors.rule}
+        />
+        <View style={styles.ringCenter}>
+          <Text style={styles.ringCenterText}>
+            {elapsed < RING_SECONDS ? 'a quiet\nminute' : 'take your\ntime'}
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -140,23 +169,27 @@ function GlimpseCompleteCard({
   const info = levelTitleInfo(level);
   return (
     <View style={[cards.card, styles.doneCard]}>
-      <Text style={styles.doneCheck}>✓</Text>
+      {/* §3.4.3 — kept in sage, the entry shown back as a vellum keepsake in
+          serif quotes, then the pressed-leaf mark that gained its leaf on save. */}
+      <KeptSeal size={56} tone="sage" style={styles.doneSeal} />
       <Text style={styles.doneTitle}>Gratitude practiced.</Text>
       <Text style={styles.doneXp}>+{XP_GLIMPSE} XP · Saved to your glimpses</Text>
-      <View style={styles.entryBox}>
-        <Text style={styles.entryText}>“{entry.text}”</Text>
+      <View style={[styles.entryBox, { borderLeftColor: GRATITUDE.accent }]}>
+        <Text style={[typeScale.reading, styles.entryText]}>“{entry.text}”</Text>
       </View>
+      <StemMark leaves={1} bud size={30} color={colors.sageDeep} style={styles.keepsakeMark} />
       <Text style={styles.keepsake}>{keepsakeLine(today)}</Text>
       {levelGated ? (
         <>
-          <Text style={styles.gateNote}>
-            That level is part of Calm Quest+ — your XP is safe and keeps
-            counting. Levels 1–5 stay free, always.
-          </Text>
+          <View style={styles.plusStrip}>
+            <Text style={styles.plusStripText}>
+              {'That level is part of Calm Quest+ — your XP is safe and keeps counting. Levels 1–5 stay free, always.'}
+            </Text>
+          </View>
           <Pressable
             accessibilityRole="button"
             onPress={onSeePlus}
-            style={({ pressed }) => [buttons.ghost, pressed && styles.pressed]}
+            style={({ pressed }) => [buttons.ghost, styles.ghostGold, pressed && styles.pressed]}
           >
             <Text style={buttons.ghostText}>See what Calm Quest+ includes</Text>
           </Pressable>
@@ -198,22 +231,27 @@ function GlimpseCapCard({
 }) {
   return (
     <View style={[cards.card, styles.doneCard]}>
-      <Text style={styles.doneCheck}>✓</Text>
+      {/* §3.4.4 — the cap state keeps its exact copy; the Calm Quest+ line
+          moves onto a goldTint strip and the ghost CTA gets a gold hairline:
+          an invitation with a door, never a wall. */}
+      <KeptSeal size={56} tone="sage" style={styles.doneSeal} />
       <Text style={styles.doneTitle}>Your one glimpse for today is complete.</Text>
-      <View style={styles.entryBox}>
-        <Text style={styles.entryText}>“{entry.text}”</Text>
+      <View style={[styles.entryBox, { borderLeftColor: GRATITUDE.accent }]}>
+        <Text style={[typeScale.reading, styles.entryText]}>“{entry.text}”</Text>
       </View>
+      <StemMark leaves={1} bud size={30} color={colors.sageDeep} style={styles.keepsakeMark} />
       <Text style={styles.keepsake}>
-        Saved to your glimpses. Come back tomorrow — your next glimpse will be
-        waiting.
+        {'Saved to your glimpses. Come back tomorrow — your next glimpse will be waiting.'}
       </Text>
-      <Text style={styles.gateNote}>
-        Calm Quest+ gives you as many glimpses as you like, any day.
-      </Text>
+      <View style={styles.plusStrip}>
+        <Text style={styles.plusStripText}>
+          {'Calm Quest+ gives you as many glimpses as you like, any day.'}
+        </Text>
+      </View>
       <Pressable
         accessibilityRole="button"
         onPress={onSeePlus}
-        style={({ pressed }) => [buttons.ghost, pressed && styles.pressed]}
+        style={({ pressed }) => [buttons.ghost, styles.ghostGold, pressed && styles.pressed]}
       >
         <Text style={buttons.ghostText}>See what Calm Quest+ includes</Text>
       </Pressable>
@@ -453,11 +491,12 @@ export default function GlimpseScreen({ route }: { route: { params: { promptId: 
           />
         ) : (
           <View style={[cards.card, styles.doneCard]}>
-            <Text style={styles.doneCheck}>✓</Text>
+            <KeptSeal size={56} tone="sage" style={styles.doneSeal} />
             <Text style={styles.doneTitle}>Glimpse saved today — see you tomorrow.</Text>
-            <View style={styles.entryBox}>
-              <Text style={styles.entryText}>“{savedEntry.text}”</Text>
+            <View style={[styles.entryBox, { borderLeftColor: GRATITUDE.accent }]}>
+              <Text style={[typeScale.reading, styles.entryText]}>“{savedEntry.text}”</Text>
             </View>
+            <StemMark leaves={1} bud size={30} color={colors.sageDeep} style={styles.keepsakeMark} />
             <Text style={styles.keepsake}>
               Saved to your glimpses. {keepsakeLine(today)}
             </Text>
@@ -497,14 +536,22 @@ export default function GlimpseScreen({ route }: { route: { params: { promptId: 
         <Text style={[badges.chipText, badges.sageText]}>GRATITUDE GLIMPSE</Text>
       </View>
       <Text style={styles.title}>A grateful glance</Text>
-      <Text style={styles.prompt}>{prompt.prompt}</Text>
+      <Ornament style={styles.promptOrnament} />
+      <Text style={[typeScale.prompt, styles.prompt]}>{prompt.prompt}</Text>
 
       <AmbientRing elapsed={elapsed} />
+      {/* §3.4.2 — the keepsake bud at the ring's base. It has no leaf yet; the
+          completion card shows the same mark with the leaf it gained on save. */}
+      <StemMark leaves={0} bud size={34} color={colors.sageMark} style={styles.budStem} />
 
       <View style={[cards.card, styles.writeCard]}>
         <Text style={styles.hint}>One word is enough. There&rsquo;s no right answer.</Text>
         <TextInput
-          style={[styles.input, focused && styles.inputFocused]}
+          style={[
+            styles.input,
+            { borderLeftColor: GRATITUDE.accent },
+            focused && { borderColor: GRATITUDE.accent, borderWidth: 1.5 },
+          ]}
           value={text}
           onChangeText={setText}
           onFocus={() => setFocused(true)}
@@ -552,35 +599,34 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
     marginBottom: spacing.sm,
   },
+  /** §3.4.3 — the prompt in the serif 20px prompt voice, one ✦ ornament above. */
+  promptOrnament: {
+    alignSelf: 'stretch',
+    marginBottom: spacing.sm,
+  },
   prompt: {
-    fontSize: 19,
-    lineHeight: 28,
-    color: colors.tealDeep,
-    fontWeight: '600',
     textAlign: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
     paddingHorizontal: spacing.md,
+  },
+  /** §3.4.1 — the ring's frame; it carries this screen's one amber wash. */
+  ringWrap: {
+    width: RING_SIZE,
+    height: RING_SIZE,
+    marginBottom: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ringWash: {
+    position: 'absolute',
+    left: RING_WASH_OFFSET,
+    top: RING_WASH_OFFSET,
   },
   ring: {
     width: RING_SIZE,
     height: RING_SIZE,
-    marginBottom: spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  tick: {
-    position: 'absolute',
-    width: 6,
-    height: 6,
-    borderRadius: radii.pill,
-  },
-  tickLit: {
-    backgroundColor: colors.teal,
-  },
-  tickDim: {
-    backgroundColor: colors.paperDeep,
-    borderWidth: 1,
-    borderColor: colors.paperEdge,
   },
   ringCenter: {
     alignItems: 'center',
@@ -593,6 +639,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic',
   },
+  /** §3.4.2 — the keepsake bud sits at the ring's base. */
+  budStem: {
+    marginTop: -4,
+    marginBottom: spacing.md,
+  },
   writeCard: {
     alignSelf: 'stretch',
   },
@@ -603,8 +654,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: spacing.sm,
   },
+  /** §3.4.3 — the entry box is a vellum keepsake with the theme left rule. */
   input: {
-    borderWidth: 1.5,
+    borderWidth: 1,
+    borderLeftWidth: 3,
     borderColor: colors.paperEdge,
     borderRadius: radii.md,
     padding: spacing.md,
@@ -612,11 +665,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 22,
     color: colors.ink,
-    backgroundColor: colors.card,
+    backgroundColor: colors.vellum,
     textAlignVertical: 'top',
-  },
-  inputFocused: {
-    borderColor: colors.teal,
   },
   completeBtn: {
     marginTop: spacing.md,
@@ -633,11 +683,9 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xl,
     paddingBottom: spacing.xl,
   },
-  doneCheck: {
-    fontSize: 44,
-    fontWeight: '800',
-    color: colors.teal,
-    marginBottom: spacing.sm,
+  /** §3.4 — the kept seal in sage replaces the old ✓ glyph. */
+  doneSeal: {
+    marginBottom: spacing.md,
   },
   doneTitle: {
     fontSize: 22,
@@ -652,19 +700,22 @@ const styles = StyleSheet.create({
     color: colors.goldDeep,
     marginBottom: spacing.md,
   },
+  /** §3.4.3 — the entry shown back as a vellum keepsake (theme left rule). */
   entryBox: {
     alignSelf: 'stretch',
-    backgroundColor: colors.paperDeep,
+    backgroundColor: colors.vellum,
+    borderLeftWidth: 3,
     borderRadius: radii.md,
     padding: spacing.md,
-    marginBottom: spacing.md,
+    marginBottom: spacing.xs,
   },
   entryText: {
-    fontSize: 16,
-    fontStyle: 'italic',
-    lineHeight: 24,
-    color: colors.ink,
     textAlign: 'center',
+  },
+  /** §3.4.2 — the pressed-leaf keepsake mark: the bud, with the leaf it saved. */
+  keepsakeMark: {
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
   },
   keepsake: {
     fontSize: 14,
@@ -681,11 +732,26 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: spacing.sm,
   },
-  gateNote: {
+  /** §3.4.4 — the Calm Quest+ line on a goldTint strip: an invitation. */
+  plusStrip: {
+    alignSelf: 'stretch',
+    backgroundColor: colors.goldTint,
+    borderRadius: radii.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  plusStripText: {
     fontSize: 13,
     lineHeight: 19,
-    color: colors.inkSoft,
+    color: colors.goldDeep,
     textAlign: 'center',
+  },
+  /** §3.4.4 — the ghost CTA's gold hairline: a door, not a wall. */
+  ghostGold: {
+    alignSelf: 'stretch',
+    borderWidth: 1,
+    borderColor: colors.gold,
     marginBottom: spacing.xs,
   },
   doneBtn: {
