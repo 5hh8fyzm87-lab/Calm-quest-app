@@ -33,6 +33,12 @@
     "plugins": [
       "@react-native-community/datetimepicker",
       "expo-notifications"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "354e63a9-c62d-47e2-afae-e18c99276bfe"
+      }
+    },
+    "owner": "nvrbakdwn125s-team"
   }
 }
