@@ -56,9 +56,9 @@ export type { Quest, Affirmation, GratitudePrompt, Verse };
  * Build 14 (two-paths §5): 1.1.0 — the bundle now holds three programs, so the
  * note stops quoting one program's counts as the whole pack (the colophon below
  * prints the CURRENT program's real counts instead, from its own pool). The
- * colophon must never overstate: the two newer programs ship starter sets while
- * their authoring wave lands, and the counts it prints are lengths of real
- * arrays, not targets.
+ * colophon must never overstate: the counts it prints are lengths of real
+ * arrays, not targets — 60 quests / 75 affirmations for Christian Mindset, and
+ * 20 / 20 for each of the two programs build 14 part 2 authored.
  */
 export const CONTENT_META = {
   version: '1.1.0',

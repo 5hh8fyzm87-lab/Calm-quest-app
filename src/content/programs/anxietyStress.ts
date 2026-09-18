@@ -7,12 +7,16 @@
  * `PEACE_AND_REST_LABEL` in src/content/themes.ts — so the owner can flip it in
  * the copy pass without touching a screen.
  *
- * ⚠️ SEED SET — PENDING PART-2 AUTHORING. Five quests (one per theme, all four
- * quest types) and five affirmations (one per theme) so that pools, gates and
- * proofs are fully exercisable. Part 2 (content authoring) fills the same file to
- * the lean Option-A target — 20 quests / 20 affirmations — continuing the
- * `q-peace-NN` / `aff-peace-NN` numbering. Same five theme keys, same four quest
- * types, same rotation; no structural change when that lands.
+ * PART 2 COMPLETE — 20 quests / 20 affirmations. The part-1 seed (five quests —
+ * one per theme, all four quest types; five affirmations — one per theme) sits
+ * byte-for-byte at the top of each array, and part 2 (content authoring) added
+ * the rest to the lean Option-A target, continuing the `q-peace-NN` /
+ * `aff-peace-NN` numbering to 20 each. Every string below was written against
+ * the guardrail checklist in this header, one line at a time, and every rendered
+ * string is mirrored in NEW_STRINGS.md under "Build 14 — part 2 (content)".
+ * Nothing about the program's structure changed in part 2: same five theme keys,
+ * same four quest types, same rotation. The bundle now holds five quests of each
+ * type and four quests / four affirmations per theme.
  *
  * Every Read & Reflect quest takes an existing `verseId` from the shared WEB
  * library (src/content/verses.ts) — no new verse text, no new translation work.
@@ -90,6 +94,148 @@ export const anxietyStressQuests: Quest[] = [
     actionPrompt:
       'Put down one thing today that is not yours to carry: a worry for later, one task, one expectation. Setting something down is allowed, and nothing here is lost by it.',
   },
+
+  // =========================================================================== purpose
+  {
+    id: 'q-peace-06',
+    theme: 'purpose',
+    type: 'read_reflect',
+    title: 'Be still and know',
+    verseId: 'verse-psalm-46-10',
+    reflection:
+      'The verse asks for no working-out and no plan \u2014 only a moment of stopping to remember who is holding all of it. Nothing is required of you here except the stillness itself.',
+    checkInOptions: [{ label: 'Peace' }, { label: 'Trust' }, { label: 'Rest' }],
+  },
+  {
+    id: 'q-peace-07',
+    theme: 'purpose',
+    type: 'pause',
+    title: 'Nothing to carry here',
+    durationSeconds: 60,
+    pausePrompt:
+      'One minute with nothing to hold \u2014 no decisions, no mending, no preparing the next thing. Let the minute be empty on purpose.',
+  },
+  {
+    id: 'q-peace-08',
+    theme: 'purpose',
+    type: 'write',
+    title: 'A gentler tomorrow',
+    journalPrompt:
+      'Write one line about one thing that would make tomorrow lighter \u2014 not a list, not a plan, just one line.',
+  },
+
+  // =========================================================================== patience
+  {
+    id: 'q-peace-09',
+    theme: 'patience',
+    type: 'read_reflect',
+    title: 'Quietly waiting',
+    verseId: 'verse-lam-3-26',
+    reflection:
+      'Hoping quietly is allowed to take time. This verse does not ask you to hurry your heart along \u2014 only to let hope stay with you while you wait.',
+    checkInOptions: [{ label: 'Peace' }, { label: 'Hope' }, { label: 'Rest' }],
+  },
+  {
+    id: 'q-peace-10',
+    theme: 'patience',
+    type: 'act',
+    title: 'One thing left for later',
+    actionPrompt:
+      'Choose one thing you were going to push through today and leave it for tomorrow instead. Some things go better rested, and letting them wait is allowed.',
+  },
+  {
+    id: 'q-peace-11',
+    theme: 'patience',
+    type: 'write',
+    title: 'What is taking time',
+    journalPrompt:
+      'Write one line about something that is taking longer than you hoped \u2014 and one kind thing you can say to yourself about the wait.',
+  },
+
+  // =========================================================================== gratitude
+  {
+    id: 'q-peace-12',
+    theme: 'gratitude',
+    type: 'read_reflect',
+    title: 'Every good gift',
+    verseId: 'verse-james-1-17',
+    reflection:
+      'Whatever good is in today arrived as a gift rather than a wage. Noticing that does not deny the hard parts of the day \u2014 it just names what was given, including the plain things.',
+    checkInOptions: [{ label: 'Grateful' }, { label: 'Peace' }, { label: 'Calm' }],
+  },
+  {
+    id: 'q-peace-13',
+    theme: 'gratitude',
+    type: 'pause',
+    title: 'A minute for one good thing',
+    durationSeconds: 60,
+    pausePrompt:
+      'For one minute, give your whole attention to one small good thing \u2014 a warm drink, a blanket, a light left on \u2014 and let it be enough for now.',
+  },
+  {
+    id: 'q-peace-14',
+    theme: 'gratitude',
+    type: 'write',
+    title: 'One ordinary good thing',
+    journalPrompt:
+      'Write one line about something ordinary that was good today, however small it seems. Ordinary counts.',
+  },
+
+  // =========================================================================== forgiveness
+  {
+    id: 'q-peace-15',
+    theme: 'forgiveness',
+    type: 'read_reflect',
+    title: 'A weight already lifted',
+    verseId: 'verse-psalm-32-1',
+    reflection:
+      'Being forgiven is spoken of here as a weight lifted, not a debt still owed. Whatever you are still holding against yourself, this verse does not ask you to keep carrying it.',
+    checkInOptions: [{ label: 'Gentle' }, { label: 'Peace' }, { label: 'Hope' }],
+  },
+  {
+    id: 'q-peace-16',
+    theme: 'forgiveness',
+    type: 'act',
+    title: 'Say one kind sentence',
+    actionPrompt:
+      'Say one kind sentence to yourself today \u2014 out loud if you can \u2014 the way you would say it to a friend in your place. Kindness aimed inward counts the same as kindness aimed out.',
+  },
+  {
+    id: 'q-peace-17',
+    theme: 'forgiveness',
+    type: 'pause',
+    title: 'Softer than you think',
+    durationSeconds: 60,
+    pausePrompt:
+      'One minute to notice where you are bracing \u2014 a jaw, a shoulder, a breath held high \u2014 and to let it be softer than it has been.',
+  },
+
+  // =========================================================================== stillness
+  {
+    id: 'q-peace-18',
+    theme: 'stillness',
+    type: 'act',
+    title: 'Ten minutes without the phone',
+    actionPrompt:
+      'Put the phone in another room for ten minutes today and leave it there. Nothing that arrives in ten minutes needs you before you have had them.',
+  },
+  {
+    id: 'q-peace-19',
+    theme: 'stillness',
+    type: 'pause',
+    title: 'One long, slow out-breath',
+    durationSeconds: 60,
+    pausePrompt:
+      'Let one breath out take its time, longer than the breath in. Then let the next one do the same.',
+  },
+  {
+    id: 'q-peace-20',
+    theme: 'stillness',
+    type: 'write',
+    title: 'What the day held',
+    journalPrompt:
+      'Write one line about what today held \u2014 no tidying it up, no making it sound better than it was.',
+  },
 ];
 
 export const anxietyStressAffirmations: Affirmation[] = [
@@ -117,5 +263,90 @@ export const anxietyStressAffirmations: Affirmation[] = [
     id: 'aff-peace-05',
     theme: 'purpose',
     text: 'I do not have to carry everything at once.',
+  },
+
+  // =========================================================================== gratitude
+  {
+    id: 'aff-peace-06',
+    theme: 'gratitude',
+    text: 'Something ordinary was good today, and I let myself notice it.',
+  },
+  {
+    id: 'aff-peace-07',
+    theme: 'gratitude',
+    text: 'Noticing what is good does not mean pretending the rest is fine.',
+  },
+  {
+    id: 'aff-peace-08',
+    theme: 'gratitude',
+    text: 'I can receive a small kindness without earning it first.',
+  },
+
+  // =========================================================================== stillness
+  {
+    id: 'aff-peace-09',
+    theme: 'stillness',
+    text: 'I can let this minute be empty and still be alright.',
+  },
+  {
+    id: 'aff-peace-10',
+    theme: 'stillness',
+    text: 'There is nothing I have to solve in the next sixty seconds.',
+  },
+  {
+    id: 'aff-peace-11',
+    theme: 'stillness',
+    text: 'Quiet is allowed to be simple \u2014 I do not have to fill it.',
+  },
+
+  // =========================================================================== purpose
+  {
+    id: 'aff-peace-12',
+    theme: 'purpose',
+    text: 'One small, kind step is a direction, and that is enough.',
+  },
+  {
+    id: 'aff-peace-13',
+    theme: 'purpose',
+    text: 'I am allowed to be a beginner at getting through today.',
+  },
+  {
+    id: 'aff-peace-14',
+    theme: 'purpose',
+    text: 'What I can do today is enough for today.',
+  },
+
+  // =========================================================================== forgiveness
+  {
+    id: 'aff-peace-15',
+    theme: 'forgiveness',
+    text: 'I can be patient with myself while I am still learning how.',
+  },
+  {
+    id: 'aff-peace-16',
+    theme: 'forgiveness',
+    text: 'A hard day is not a measure of who I am.',
+  },
+  {
+    id: 'aff-peace-17',
+    theme: 'forgiveness',
+    text: 'I can hold regret and gentleness at the same time.',
+  },
+
+  // =========================================================================== patience
+  {
+    id: 'aff-peace-18',
+    theme: 'patience',
+    text: 'Waiting is not wasted time; it is time I am allowed to have.',
+  },
+  {
+    id: 'aff-peace-19',
+    theme: 'patience',
+    text: 'I do not have to hurry my heart along.',
+  },
+  {
+    id: 'aff-peace-20',
+    theme: 'patience',
+    text: 'Things take the time they take, and I can be kind about that.',
   },
 ];

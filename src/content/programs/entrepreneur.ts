@@ -32,7 +32,7 @@ export const entrepreneurQuests: Quest[] = [
     theme: 'purpose',
     type: 'read_reflect',
     title: 'Commit the work',
-    verseId: 'verse-prov-16-3',
+    verseId: 'verse-proverbs-16-3',
     reflection:
       'A plan is a small act of hope. You can hand the outcome over and still do today\u2019s work well — the doing is yours, the results were never fully in your hands.',
     checkInOptions: [{ label: 'Purpose' }, { label: 'Peace' }, { label: 'Courage' }],
