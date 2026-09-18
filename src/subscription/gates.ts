@@ -51,6 +51,17 @@ export const THEME_ORDER: readonly QuestTheme[] = [
 // ---------------------------------------------------------------------------
 
 /**
+ * The state slices the program/theme gates need. Deliberately structural (not
+ * `Pick<AppState, ...>`, which would demand a whole `UserProfile`): a caller
+ * only ever knows these two facts, and the gates must be callable from a
+ * pre-load render too (where the honest answer is "nothing is held yet").
+ */
+export interface ProgramGateSlice {
+  entitlements: Pick<AppState['entitlements'], 'tier'>;
+  profile: { path: PathId };
+}
+
+/**
  * The programs the user HOLDS right now. Free: exactly the one the profile
  * chose. Paid: all three, in canonical order.
  *
@@ -58,9 +69,7 @@ export const THEME_ORDER: readonly QuestTheme[] = [
  * bonus quest run over, and which program the picker marks as current. It never
  * gates content the user already completed or kept (see `ALL_QUESTS`).
  */
-export function programsFor(
-  state: Pick<AppState, 'entitlements' | 'profile'>,
-): PathId[] {
+export function programsFor(state: ProgramGateSlice): PathId[] {
   if (state.entitlements.tier === 'paid') return [...PATH_ORDER];
   return [state.profile.path];
 }
@@ -132,7 +141,7 @@ export function canBrowseThemes(state: Pick<AppState, 'entitlements'>): boolean 
  * (Home, Paywall, Settings) pass the same persisted snapshot they already had.
  */
 export function visibleThemes(
-  state: Pick<AppState, 'entitlements' | 'profile'>,
+  state: ProgramGateSlice,
   today: string,
 ): QuestTheme[] {
   if (state.entitlements.tier === 'paid') return [...THEME_ORDER];

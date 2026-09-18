@@ -244,10 +244,12 @@ export default function PaywallScreen({
 
   // The swatch row's availability comes from the app's REAL gate derivation —
   // never a guess about what this user holds. Until the first load resolves the
-  // honest baseline is 'free': a paid user cannot reach this screen at all
-  // (`paywallSurface` returns null for a paid tier).
+  // honest baseline claims NOTHING: a paid user cannot reach this screen at all
+  // (`paywallSurface` returns null for a paid tier), and a free user's held
+  // theme is decided by the program their profile holds, which is not known
+  // until the state lands. Under-claiming for one frame, never a guess.
   const day = today();
-  const available = visibleThemes(state ?? { entitlements: { tier: 'free' } }, day);
+  const available = state ? visibleThemes(state, day) : [];
   const swatchItems: ThemeSwatchItem[] = THEME_ORDER.map((t) => ({
     theme: t,
     name: THEME_LABELS[t],

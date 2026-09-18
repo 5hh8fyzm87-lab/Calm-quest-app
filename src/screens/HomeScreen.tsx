@@ -94,6 +94,7 @@ import {
   serifFamily,
   shadows,
   spacing,
+  Sprout,
   StreakSprig,
   themeAccents,
   typeScale,
