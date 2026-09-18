@@ -36,4 +36,12 @@ export type AppRouteParamList = {
    * surface over the bundled verse library. Reachable from Settings.
    */
   Verse: undefined;
+  /**
+   * Programs (build 14, two-paths §2): the picker — three rows, the held one
+   * marked, a tap switches which single program is yours. Reachable from Home's
+   * PROGRAMS card and from Settings' YOUR PROGRAM row. Switching writes ONE
+   * profile field and resets nothing: streak, XP, levels and everything kept
+   * stay exactly as they are, and the daily loop is never re-opened.
+   */
+  Programs: undefined;
 };

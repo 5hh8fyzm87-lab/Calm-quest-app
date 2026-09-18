@@ -22,6 +22,7 @@ import KeptScreen from '../screens/KeptScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
 import PaywallScreen from '../screens/PaywallScreen';
 import PrivacyTermsScreen from '../screens/PrivacyTermsScreen';
+import ProgramsScreen from '../screens/ProgramsScreen';
 import QuestScreen from '../screens/QuestScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import SitWithVerseScreen from '../screens/SitWithVerseScreen';
@@ -95,6 +96,9 @@ export default function RootNavigator() {
             read-only surfaces: no XP, no notifications, no new persistence. */}
         <Stack.Screen name="Kept" component={KeptScreen} />
         <Stack.Screen name="Verse" component={SitWithVerseScreen} />
+        {/* Build 14 (two-paths §2): the program picker. Three rows, the held one
+            marked; a tap switches programs and resets nothing. */}
+        <Stack.Screen name="Programs" component={ProgramsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

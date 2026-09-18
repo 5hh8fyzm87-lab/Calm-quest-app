@@ -71,12 +71,31 @@ import type { ThemeSwatchItem } from '../theme';
 
 type Nav = NativeStackNavigationProp<AppRouteParamList, 'Paywall'>;
 
-/** The spec's three-bullet value recap (Flow E step 2 — three, not more). */
+/**
+ * The spec's three-bullet value recap (Flow E step 2 — three, not more).
+ *
+ * Build 14 (two-paths §3): bullet 1 is the proposal's exact proposed rewrite —
+ * with three programs in the app, "all five themes, on demand" understated what
+ * is held. Bullets 2 and 3 stay VERBATIM and become more true (the library is
+ * per program now, and the archive behind bullet 3 exists since build 13).
+ */
 const VALUE_BULLETS: readonly string[] = [
-  'All five themes, on demand — not just today\u2019s quest',
+  'All three programs, and every theme in each, on demand',
   'The full quest library, with repeats when a theme helps twice',
   'Unlimited Gratitude Glimpses, plus your whole archive',
 ];
+
+/**
+ * The free strip (build 14, proposal §3 optional edit): the honest free promise
+ * now names the program rule too, because that is what the paywall is really
+ * selling — holding all three at once, not access to a single one.
+ */
+const FREE_STRIP =
+  'Free, and staying free: the daily quest, Affirmation of the Day, one Glimpse a day, grace streaks, levels 1–5, and one program at a time — yours to choose.';
+
+/** The label above the program marks (build 14). The gold ✦ carries no words. */
+const PROGRAMS_LABEL = 'PROGRAMS';
+const ORNAMENT = '✦';
 
 /**
  * Honest copy per ending. Every one of these means "nothing was charged unless

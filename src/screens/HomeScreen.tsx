@@ -35,21 +35,25 @@ import { useCallback, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
-  affirmations,
+  affirmationPool,
   CONTENT_COUNTS,
   CONTENT_META,
+  PATH_LABELS,
+  PATH_ORDER,
   pickToday,
+  prompts,
   QUEST_TYPE_INTROS,
   QUEST_TYPE_LABELS,
-  prompts,
-  quests,
+  questById,
+  questPool,
   THEME_LABELS,
   verses,
 } from '../content';
 import { analytics } from '../analytics';
 import { KeptThisWeekStrip } from '../components/KeptThisWeekStrip';
+import { PlusInvitation } from '../components/PlusInvitation';
 import type { AppRouteParamList } from '../navigation/types';
-import type { Quest, QuestTheme, Verse } from '../models/types';
+import type { PathId, Quest, QuestTheme, Verse } from '../models/types';
 import {
   displayLevel,
   levelFloorXp,
@@ -66,7 +70,9 @@ import type { AppState } from '../storage/store';
 import {
   bonusQuestAvailable,
   canBrowseThemes,
+  canSwitchPrograms,
   pickBonusQuest,
+  programsFor,
   themeQuestCounts,
   THEME_ORDER,
   visibleThemes,
@@ -206,17 +212,26 @@ function GrowthStrip({ state }: { state: AppState }) {
   );
 }
 
+/**
+ * Today's quest card. `quest` is optional for exactly one reason (build 14):
+ * when today's loop is already done, Home must show the quest that was actually
+ * COMPLETED — resolved by id from ALL_QUESTS — because a program switch changes
+ * what today's rotation would pick. In the (unreachable-in-practice) case where
+ * that id no longer resolves to any content, the card still renders its done
+ * state and simply names no quest: it never wears a done badge over a different
+ * quest, and it never invents a second quest for the day.
+ */
 function QuestCard({
   quest,
   done,
   onBegin,
 }: {
-  quest: Quest;
+  quest?: Quest;
   done: boolean;
   onBegin: () => void;
 }) {
-  const verse = verseFor(quest.verseId);
-  const accent = themeAccents[quest.theme];
+  const verse = quest ? verseFor(quest.verseId) : undefined;
+  const accent = themeAccents[quest ? quest.theme : 'gratitude'];
   return (
     <View
       style={[
@@ -226,23 +241,27 @@ function QuestCard({
         done && styles.questCardDone,
       ]}
     >
-      <View style={styles.chipRow}>
-        <View style={[styles.themeChip, { backgroundColor: accent.tint }]}>
-          <Text style={[styles.themeChipText, { color: accent.deep }]}>
-            {THEME_LABELS[quest.theme]}
-          </Text>
-        </View>
-        <View style={[badges.chip, badges.sand]}>
-          <Text style={[badges.chipText, badges.sandText]}>{QUEST_TYPE_LABELS[quest.type]}</Text>
-        </View>
-      </View>
-      <View style={styles.titleRow}>
-        <ThemeDisc theme={quest.theme} />
-        <Text style={styles.questTitle}>{quest.title}</Text>
-      </View>
+      {quest ? (
+        <>
+          <View style={styles.chipRow}>
+            <View style={[styles.themeChip, { backgroundColor: accent.tint }]}>
+              <Text style={[styles.themeChipText, { color: accent.deep }]}>
+                {THEME_LABELS[quest.theme]}
+              </Text>
+            </View>
+            <View style={[badges.chip, badges.sand]}>
+              <Text style={[badges.chipText, badges.sandText]}>{QUEST_TYPE_LABELS[quest.type]}</Text>
+            </View>
+          </View>
+          <View style={styles.titleRow}>
+            <ThemeDisc theme={quest.theme} />
+            <Text style={styles.questTitle}>{quest.title}</Text>
+          </View>
+        </>
+      ) : null}
       {!done ? (
         <>
-          <Text style={[cards.subtitle, styles.body]}>{bodyFor(quest)}</Text>
+          <Text style={[cards.subtitle, styles.body]}>{quest ? bodyFor(quest) : ''}</Text>
           {verse ? <VersePlate verse={verse} accent={accent} /> : null}
           <Pressable
             accessibilityRole="button"
@@ -511,6 +530,85 @@ function ThemesCard({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Build 14 (two-paths §2): the PROGRAMS card — the Themes card's grammar one
+// level up, and the door to the picker.
+//
+// De-jailed, exactly like the themes rows: every row keeps its real name at
+// full contrast, the program you hold wears the teal kept pair (tealTint fill,
+// solid Sprout), a program you do not hold wears sand with the hollow Leaf and
+// the approved gold line "Included with Calm Quest+" — no padlock, no dimmed
+// text, no disabled state. Every row is a real door to the picker, where
+// changing which program is yours is free (fork (a), owner decision).
+// ---------------------------------------------------------------------------
+
+function ProgramsCard({
+  held,
+  onOpenPrograms,
+  onSeePlus,
+}: {
+  held: PathId[];
+  onOpenPrograms: () => void;
+  onSeePlus: () => void;
+}) {
+  const holdsAll = held.length === PATH_ORDER.length;
+  return (
+    <View style={[cards.card, styles.programsCard]}>
+      <View style={styles.chipRow}>
+        <View style={[badges.chip, badges.gold]}>
+          <Text style={[badges.chipText, badges.goldText]}>PROGRAMS</Text>
+        </View>
+      </View>
+      <Text style={cards.title}>A program for the season you’re in</Text>
+      <Text style={[cards.subtitle, styles.body]}>
+        {holdsAll
+          ? 'All three are yours — switch any day, nothing resets.'
+          : 'The same five themes in each. Yours is the one your daily quest comes from.'}
+      </Text>
+      <View style={styles.themeGrid}>
+        {PATH_ORDER.map((p) => {
+          const mine = held.includes(p);
+          return (
+            <Pressable
+              key={p}
+              accessibilityRole="button"
+              accessibilityLabel={
+                mine ? `${PATH_LABELS[p]}, your program` : `${PATH_LABELS[p]}, included with Calm Quest+`
+              }
+              accessibilityHint="Opens the program picker."
+              onPress={onOpenPrograms}
+              style={({ pressed }) => [
+                styles.themeRow,
+                mine ? styles.programRowMine : styles.programRowOther,
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={styles.themeRowLeft}>
+                <Sprout size={12} color={mine ? colors.tealDeep : colors.inkSoft} hollow={!mine} />
+                <Text style={styles.themeName}>{PATH_LABELS[p]}</Text>
+              </View>
+              {mine ? (
+                <Text style={styles.programMine}>Yours now</Text>
+              ) : (
+                <Text style={styles.themePlus}>Included with Calm Quest+</Text>
+              )}
+            </Pressable>
+          );
+        })}
+      </View>
+      {/* Anyone who does not hold all three sees what Calm Quest+ adds — the
+          app's existing gold invitation family, no urgency, no padlock. */}
+      {!holdsAll ? (
+        <PlusInvitation
+          line="Calm Quest+ holds all three at once."
+          onPress={onSeePlus}
+          style={styles.programsPlus}
+        />
+      ) : null}
+    </View>
+  );
+}
+
 export default function HomeScreen() {
   const navigation = useNavigation<Nav>();
 
@@ -541,16 +639,38 @@ export default function HomeScreen() {
   const showGrowthButton =
     !!state && paywallSurface(state, today, false) === 'growth';
 
-  const quest = pickToday(quests, today);
-  const affirmation = pickToday(affirmations, today);
+  // Build 14 (two-paths §1): today's quest comes from the pool of the program
+  // the profile holds. Before the persisted state lands there is no program to
+  // rotate over, so the loop area renders nothing at all — never another
+  // program's quest under today's date.
+  const path = state ? state.profile.path : null;
+  const pool = path ? questPool(path) : [];
+  const quest = pickToday(pool, today);
+  const todaysAffirmations = path ? affirmationPool(path) : [];
+  const affirmation = pickToday(todaysAffirmations, today);
   const prompt = pickToday(prompts, today);
   const friendly = friendlyDate();
-  // The day's colour: exactly one theme per screen (§5 rule 1), and exactly one
-  // wash per screen — the header bloom below.
-  const dayAccent = themeAccents[quest ? quest.theme : 'gratitude'];
 
   const questDone = !!state && state.quests.lastQuestCompletionDate === today;
   const affirmationSaved = !!state && !!affirmation && state.savedAffirmationIds.includes(affirmation.id);
+
+  // -----------------------------------------------------------------------
+  // The mid-day switch trap (two-paths §2). "Done today" is date-keyed and
+  // says nothing about WHICH program's quest it was — so after a switch, today's
+  // rotation answers with a different quest. The card must therefore keep
+  // showing the quest that was actually completed, resolved by ID from
+  // ALL_QUESTS (never the current pool), with done: true. Never a different
+  // quest wearing a done badge, never a second quest for the day, and switching
+  // never re-opens the daily loop (lastQuestCompletionDate is untouched).
+  // -----------------------------------------------------------------------
+  const todaysCompletion = state?.quests.completions.find((c) => c.date === today);
+  const doneQuest = questDone ? questById(todaysCompletion?.questId) : undefined;
+  const cardQuest = questDone ? doneQuest : quest;
+
+  // The day's colour: the colour of what the card actually SHOWS — on a done
+  // day that is the completed quest's theme, not today's rotation. Exactly one
+  // theme per screen (§5 rule 1) stays true either way.
+  const dayAccent = themeAccents[cardQuest ? cardQuest.theme : 'gratitude'];
 
   // -----------------------------------------------------------------------
   // Phase 4b (§5 + S1): paid-only surfaces, all derived at interaction time.
@@ -564,7 +684,12 @@ export default function HomeScreen() {
     state && bonusQuestAvailable(state, today) ? pickBonusQuest(state, today) : undefined;
   const themes = state ? visibleThemes(state, today) : [];
   const browsingThemes = !!state && canBrowseThemes(state);
-  const themeCounts = browsingThemes ? themeQuestCounts() : null;
+  // Real counts from THIS program's pool (build 14): the peek never counts a
+  // program the user does not hold.
+  const themeCounts = browsingThemes ? themeQuestCounts(pool) : null;
+  // The programs this user HOLDS (free: one; Calm Quest+: all three) — the
+  // PROGRAMS card renders from the same real derivation as the gates.
+  const heldPrograms = state ? programsFor(state) : [];
 
   async function saveAffirm() {
     if (!state || !affirmation || affirmationSaved) return;
@@ -665,16 +790,24 @@ export default function HomeScreen() {
 
       {state ? <GrowthStrip state={state} /> : null}
 
-      {/* Today's quest */}
-      {quest ? (
+      {/* Today's quest — on a done day, the quest that was actually completed
+          (resolved by id), never whatever today's rotation would now pick. */}
+      {cardQuest ? (
         <QuestCard
-          quest={quest}
+          quest={cardQuest}
           done={questDone}
-          onBegin={() => navigation.navigate('Quest', { questId: quest.id })}
+          onBegin={() => {
+            if (cardQuest) navigation.navigate('Quest', { questId: cardQuest.id });
+          }}
         />
-      ) : (
+      ) : questDone ? (
+        // Defensive (unreachable while content ships): today's loop is done but
+        // its quest id resolves to nothing. The card still says the loop is
+        // complete and names no quest — it never names a different one.
+        <QuestCard done onBegin={() => {}} />
+      ) : state ? (
         <Text style={cards.subtitle}>Quest library empty — nothing to show today.</Text>
-      )}
+      ) : null}
 
       {/* Build 13 (proposal §2 H): the "Kept this week" strip — one quiet card
           directly after the quest card, the door to the kept archive. It reads
@@ -742,12 +875,27 @@ export default function HomeScreen() {
         />
       ) : null}
 
-      {/* Subtle Phase-1 proof footer — a colophon: hairline + letterspacing. */}
+      {/* Build 14 (two-paths §2): the PROGRAMS card — the door to the picker.
+          One program held (free) or all three (Calm Quest+), shown with real
+          names and the same de-jailed grammar as the themes rows. */}
+      {state ? (
+        <ProgramsCard
+          held={heldPrograms}
+          onOpenPrograms={() => navigation.navigate('Programs')}
+          onSeePlus={() => navigation.navigate('Paywall', { source: 'growth' })}
+        />
+      ) : null}
+
+      {/* Subtle Phase-1 proof footer — a colophon: hairline + letterspacing.
+          Build 14: the counts are the CURRENT program's real pool lengths (and
+          the shared prompt/verse bundles), so the footer can never overstate
+          what a user holds. */}
       <View style={styles.foot}>
         <View style={styles.footRule} />
         <Text style={[cards.small, styles.footText]}>{CONTENT_META.note}</Text>
         <Text style={[cards.small, styles.footText]}>
-          {CONTENT_COUNTS.quests} quests · {CONTENT_COUNTS.affirmations} affirmations ·{' '}
+          {path ? `${PATH_LABELS[path]} · ` : ''}
+          {pool.length} quests · {todaysAffirmations.length} affirmations ·{' '}
           {CONTENT_COUNTS.prompts} prompts · {CONTENT_COUNTS.verses} verses ·{' '}
           {CONTENT_META.attribution}
         </Text>
@@ -1123,6 +1271,34 @@ const styles = StyleSheet.create({
   themeCta: {
     marginTop: spacing.xs,
     alignSelf: 'stretch',
+  },
+  // --- Programs (build 14, de-jailed) --------------------------------------
+  programsCard: {
+    // The value family's 3px top edge (the same edge the Settings Calm Quest+
+    // card wears) — the card is about what Calm Quest+ holds, without a padlock
+    // and without a new hue.
+    backgroundColor: colors.card,
+    borderTopWidth: 3,
+    borderTopColor: colors.goldBright,
+  },
+  programRowMine: {
+    // The program you hold: the app's kept/practice pair (tealTint + teal ink).
+    backgroundColor: colors.tealTint,
+  },
+  programRowOther: {
+    // A program you do not hold: sand, at FULL contrast, with the same gold
+    // hairline the gated theme rows wear — never an opacity jail.
+    backgroundColor: colors.sand,
+    borderWidth: 1,
+    borderColor: withAlpha(colors.gold, 0.35),
+  },
+  programMine: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.tealDeep,
+  },
+  programsPlus: {
+    marginTop: spacing.xs,
   },
   // --- Colophon -----------------------------------------------------------
   foot: {
