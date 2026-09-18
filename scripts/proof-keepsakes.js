@@ -1004,7 +1004,14 @@ check(
 
 console.log('\n-- 9. copy discipline (NEW_STRINGS.md) --');
 
-const MANIFEST = readSrc('NEW_STRINGS.md');
+const MANIFEST_ALL = readSrc('NEW_STRINGS.md');
+// Build 14 (three programs): the manifest carries a SECOND wave of strings under
+// its own top-level `# Calm Quest — build 14 …` heading. §9 governs build 13's
+// 41 rows only, so the parse is scoped to the build-13 part of the file;
+// scripts/proof-programs.js owns the build-14 section. Without this scope the
+// new rows would read as build-13 rows and the five-surface assertion below
+// would fail for a reason that has nothing to do with build 13's copy.
+const MANIFEST = MANIFEST_ALL.split(/^# Calm Quest — build 14/m)[0];
 const sections = [];
 {
   const parts = MANIFEST.split(/^## /m).slice(1);
@@ -1063,7 +1070,7 @@ check(
     while ((m = literal.exec(block)) !== null) {
       const raw = m[1] !== undefined ? m[1] : m[2] !== undefined ? m[2] : m[3];
       if (raw === undefined || raw.trim() === '') continue;
-      if (!norm(MANIFEST).includes(norm(raw))) unlisted.push(`${rel}: "${raw.slice(0, 40)}"`);
+      if (!norm(MANIFEST_ALL).includes(norm(raw))) unlisted.push(`${rel}: "${raw.slice(0, 40)}"`);
     }
   }
   check('code → manifest: every string in the new COPY blocks is listed for review', unlisted.length === 0, unlisted.join(' | '));

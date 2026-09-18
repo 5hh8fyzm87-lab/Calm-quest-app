@@ -1,6 +1,6 @@
 # Calm Quest — build 13 new strings (the "stay a while" layer)
 
-**Status:** every string below is NEW copy written for build 13 and awaiting the owner's single review pass (proposal §6, decision 6: approve in ONE pass). Nothing here ships until that pass happens.
+**Status: OWNER-APPROVED AS WRITTEN (recorded during build 14).** Every string below is approved by the owner exactly as it appears here and ships verbatim. This section is CLOSED: build 14 does not re-edit or re-open any build-13 string — the strings build 14 adds or edits live under the build-14 heading further down this file, and `scripts/proof-keepsakes.js` checks the 41 rows below against the code (`scripts/proof-programs.js` owns the build-14 section).
 **What build 13 is:** four read-only surfaces over content the app ALREADY stores on the device — the kept-glimpse archive (proposal §2 A), saved affirmations (§2 D), "Sit with a verse" (§2 I), and the "Kept this week" strip on Home (§2 H).
 **Rules every string keeps:** written as fact · no hype · no congratulations energy · no urgency or scarcity · no medical framing · no guilt about streak or progress · verses always carry their attribution · growth metaphors are fine.
 **What build 13 does NOT do:** no XP from any of these surfaces (browsing is not practice), no notification anywhere, nothing rotates, no new persistence, and no existing approved string changes — the paywall bullet "plus your whole archive" now has a real screen behind it, verbatim.
@@ -90,3 +90,110 @@ Two plain rows (drawn chevron, no hue) that make both reading surfaces reachable
 
 **Count:** 41 entries — 37 new distinct strings, 3 repeats of the same words on a second surface (rows 2/28, 25/40, 27/41), and 1 reused approved string (row 38).
 **Owner decision recorded here:** the archive split is free = last 7 kept (proposal §6, option 1), which is why paywall bullet 3 stays verbatim; saved affirmations are never gated; every surface above grants zero XP.
+
+---
+
+# Calm Quest — build 14 new strings (three programs)
+
+**Status:** every string below is NEW or EDITED copy written for build 14 and awaiting the owner's single copy pass (two-paths proposal §7: the UI strings in one pass, the longer content pass separately). Nothing here ships before that pass. The build-13 section above is untouched by this one.
+**What build 14 is:** `profile.path` — already persisted, until now read by nothing — becomes the program a user rotates over. Three programs (Christian Mindset, Entrepreneur Mindset, Peace & Rest) share the five themes, the four quest types, the 30 gratitude prompts and the 60 verses. A free user holds ONE (and may change which, any day — fork (a), owner decision); Calm Quest+ holds all three at once. Nothing a user earned is affected by a switch.
+**Rules every string keeps:** written as fact · no hype · no congratulations energy · no urgency or scarcity · no medical framing · no guilt about streak or progress · the Peace & Rest strings stay inside that program's guardrail header (everyday language only, promise the practice, never the result).
+**Two strings keep the proposal's ASCII apostrophes on purpose (build-14 decision):** the picker's honest line (§3, row 50) and the routing note (§7, row 73) are copied byte-for-byte from `two-paths-proposal.md`, apostrophes included, so the proposal's wording can be diffed straight against the app. Every other string in the app uses the typographic ’.
+**How the proofs use this file:** `scripts/proof-programs.js` parses the numbered tables below, reads the file named in backticks in each `## ` heading, and fails if a listed string is not in that file. `scripts/proof-keepsakes.js` parses ONLY the part of this file above the build-14 heading (its 41 rows), so the two waves are checked independently.
+
+## 1. Program name — `src/content/themes.ts`
+
+`PEACE_AND_REST_LABEL` is now the ONE place the Peace & Rest program's display name is written; `PATH_LABELS` points at it, so the picker, Home, Settings and the paywall can never disagree about it (proof: exactly one code occurrence in `src/`).
+
+| # | Where it appears | String (verbatim) |
+|---|---|---|
+| 42 | The Peace & Rest program's display name, reused everywhere via `PATH_LABELS` | Peace & Rest |
+
+## 2. Onboarding — three live rows — `src/screens/OnboardingScreen.tsx`
+
+The two disabled "Coming soon" rows are now real radios. The approved badge moves from the hardcoded row to the SELECTED row; each row gains one one-liner. "You can change this anytime." was already approved and is finally literally true.
+
+| # | Where it appears | String (verbatim) |
+|---|---|---|
+| 43 | The badge on the selected path row (moved, not new) | You're in the right place |
+| 44 | Sub-line, Christian Mindset row | Scripture-aligned quests, affirmations and gentle reflection. |
+| 45 | Sub-line, Entrepreneur Mindset row | The same daily practice, for the life of building something. |
+| 46 | Sub-line, Peace & Rest row | Comfort and quiet for the heavy days, at the pace you can keep. |
+
+## 3. Program picker — `src/screens/ProgramsScreen.tsx`
+
+Three rows, the held one marked; tap = switch. Real per-program quest counts. No padlocks: a row the user does not hold wears the gold "there is more here" grammar, and the switch itself is free.
+
+| # | Where it appears | String (verbatim) |
+|---|---|---|
+| 47 | Header title | Programs |
+| 48 | Header back row | ‹ Back |
+| 49 | Section label above the rows | CHOOSE YOUR PROGRAM |
+| 50 | The one honest line under the section label (proposal §2, verbatim — ASCII apostrophe, see the note above) | Your streak, XP, levels and everything you've kept stay exactly as they are. |
+| 51 | Chip on the row that is the user's program right now | YOUR PROGRAM |
+| 52 | Real quest count on a row (that program's own pool only, never summed) | `${n} quest${n === 1 ? '' : 's'}` |
+| 53 | Gold line under the rows, for anyone who does not hold all three | Calm Quest+ holds all three at once. Changing which one is yours is free, any day. |
+| 54 | VoiceOver hint on a switchable row | Makes this your program. Nothing you have kept changes. |
+| 55 | Alert title if the switch write fails | Could not switch your program |
+| 56 | Alert body if the switch write fails | Your program is stored on this device — please try again. |
+
+## 4. Home — the PROGRAMS card — `src/screens/HomeScreen.tsx`
+
+The Themes card's grammar one level up, and a door to the picker (the rows open the picker; they never switch in place). De-jailed: real names at full contrast, the held program on the teal kept pair, the others on sand with the gold hairline and the already-approved "Included with Calm Quest+" line.
+
+| # | Where it appears | String (verbatim) |
+|---|---|---|
+| 57 | Card chip | PROGRAMS |
+| 58 | Card title | A program for the season you’re in |
+| 59 | Card subtitle, Calm Quest+ (holds all three) | All three are yours — switch any day, nothing resets. |
+| 60 | Card subtitle, free (holds one) | The same five themes in each. Yours is the one your daily quest comes from. |
+| 61 | Row mark, the program the user holds | Yours now |
+| 62 | Row mark, a program the user does not hold (already-approved string) | Included with Calm Quest+ |
+| 63 | Gold invitation line under the rows, free tier | Calm Quest+ holds all three at once. |
+| 64 | VoiceOver label, held row | `${PATH_LABELS[p]}, your program` |
+| 65 | VoiceOver label, row not held | `${PATH_LABELS[p]}, included with Calm Quest+` |
+| 66 | VoiceOver hint on every row (they all open the picker) | Opens the program picker. |
+
+## 5. Settings — the program door — `src/screens/SettingsScreen.tsx`
+
+One plain section and one row (drawn chevron, no hue), with the held program's real name as the row's sub-line.
+
+| # | Where it appears | String (verbatim) |
+|---|---|---|
+| 67 | Section label | YOUR PROGRAM |
+| 68 | Row into the picker | Choose your program |
+| 69 | VoiceOver hint on the row | Opens the picker. Your streak, XP and everything you have kept stay as they are. |
+
+## 6. Paywall — the program row and two edited strings — `src/screens/PaywallScreen.tsx`
+
+The hero gains the three program marks above the five theme swatches (real availability from `programsFor`, gold ✦ grammar, no new hues). Bullet 1 is rewritten because "all five themes" understated three programs; the free strip now names the one-program rule. Bullets 2–3 stay verbatim.
+
+| # | Where it appears | String (verbatim) |
+|---|---|---|
+| 70 | Value bullet 1 (EDITED — was "All five themes, on demand") | All three programs, and every theme in each, on demand |
+| 71 | The free strip (EDITED — now names the one-program rule) | Free, and staying free: the daily quest, Affirmation of the Day, one Glimpse a day, grace streaks, levels 1–5, and one program at a time — yours to choose. |
+| 72 | Label above the program marks in the hero (the ✦ is the ornament, not copy) | PROGRAMS |
+
+## 7. Peace & Rest content file — `src/content/programs/anxietyStress.ts`
+
+Not a quest and not a screen string: the routing line renders once, as a vellum note on the picker screen, next to that program's row. Copied byte-for-byte from proposal §4 (ASCII apostrophes) and it is the only health-adjacent sentence the app ships.
+
+| # | Where it appears | String (verbatim) |
+|---|---|---|
+| 73 | Vellum routing note on the picker screen (`ROUTING_NOTE`) | Calm Quest is a companion, not care. If today is heavier than a companion can hold, please reach out to someone qualified — and if you're in crisis, a local crisis line. |
+
+### Retired in build 14 — strings that left the app
+
+Listed so the copy pass can see what went, not just what arrived. None of these render anywhere in build 14.
+
+| String | Where it lived | Why it left |
+|---|---|---|
+| Coming soon | The chip on the two disabled onboarding rows (`ComingSoonChip`) | Both rows are real choices now — a program is no longer "later" |
+| `${label} is coming soon` | Onboarding, `comingSoon()` alert title | The alert is gone: tapping a row SELECTS it |
+| This path is on the way. For now, Christian Mindset is where the quests are — and it is yours for free. | Onboarding, `comingSoon()` alert body | Same alert, retired for the same reason |
+| Anxiety & Stress Support | The spec's label for the third row (`PATH_LABELS`), never rendered live | Health-adjacent term in a listing that deliberately avoids health claims — in-app name is "Peace & Rest" (row 42) |
+
+---
+
+**Count:** 32 entries (rows 42–73) — 29 new distinct strings and 3 edits of strings the app already shipped (rows 70, 71, and row 43's badge, which MOVED from the hardcoded row to the selected row). 4 strings retired, listed above.
+**Decisions recorded here:** free switching is live (fork (a), owner decision) — which is why the picker's gold line sells "all three at once" rather than "access to the others"; Home's PROGRAMS rows are doors to the picker, not in-place switches; the picker's row counts are real pool lengths, and `CONTENT_META` reads 1.1.0 with the two newer programs shipping seed sets until part 2 completes them; the two proposal-verbatim strings keep ASCII apostrophes.

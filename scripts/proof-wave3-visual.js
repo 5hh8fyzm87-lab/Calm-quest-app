@@ -446,10 +446,14 @@ check(
   norm(styleBlock(ONB, 'pathRowSoon')),
 );
 check(
-  'onboarding disabled row: textDisabled is plain inkSoft with no opacity key',
-  norm(styleBlock(ONB, 'textDisabled')).includes('color: colors.inkSoft') &&
-    !/opacity:/.test(norm(styleBlock(ONB, 'textDisabled'))),
-  norm(styleBlock(ONB, 'textDisabled')),
+  // Build 14 (two-paths §2): the style is `textUnselected` now — the two rows it
+  // was written for are real, selectable choices. The contract is unchanged and
+  // still load-bearing: state is carried by FILL and GLYPH weight, never by an
+  // opacity jail over the label (§1c).
+  'onboarding unselected row: textUnselected is plain inkSoft with no opacity key',
+  norm(styleBlock(ONB, 'textUnselected')).includes('color: colors.inkSoft') &&
+    !/opacity:/.test(norm(styleBlock(ONB, 'textUnselected'))),
+  norm(styleBlock(ONB, 'textUnselected')),
 );
 assertPaletteOnly('coming-soon chip', chipTree);
 assertNoRed('coming-soon chip', chipTree);
@@ -535,21 +539,29 @@ assertNoRed('hollow sprout', hollowSprout);
 // 2. §3.1 Onboarding
 // ---------------------------------------------------------------------------
 check(
-  '§3.1 onboarding: the approved chip label is exactly "Coming soon"',
-  /const COMING_SOON_LABEL = 'Coming soon';/.test(ONB),
+  // Build 14 (§2 Flow A): "coming soon" is fully retired from Onboarding — all
+  // three programs are real, selectable rows, so there is nothing left to label
+  // as "later" and no tap that ends in an alert. This check owns that the
+  // retirement stays complete (comment-stripped, because build 14's own header
+  // comments name what was removed).
+  '§3.1 onboarding: "coming soon" is fully retired (no chip, no label, no alert)',
+  !/COMING_SOON_LABEL|ComingSoonChip|comingSoon/.test(code(ONB)) &&
+    !/coming soon/i.test(code(ONB)),
 );
 check(
-  '§3.1 onboarding: the chip is rendered on every disabled path row, and only there',
-  /disabled \? <ComingSoonChip label=\{COMING_SOON_LABEL\} \/> : null/.test(ONB) &&
-    (ONB.match(/ComingSoonChip/g) || []).length === 2 &&
-    (ONB.match(/\n        disabled\n/g) || []).length === 2,
-  `chip uses: ${(ONB.match(/ComingSoonChip/g) || []).length}`,
+  '§3.1 onboarding: three live radio rows over PATH_ORDER, each with a real one-liner',
+  (ONB.match(/PATH_ORDER\.map\(\(option\) =>/g) || []).length === 1 &&
+    /PATH_ONE_LINERS: Record<PathId, string>/.test(ONB) &&
+    ['christian', 'entrepreneur', 'anxiety_stress'].every((p) => new RegExp(`^  ${p}: `, 'm').test(ONB)) &&
+    /sub=\{PATH_ONE_LINERS\[option\]\}/.test(ONB) &&
+    (ONB.match(/accessibilityRole="radio"/g) || []).length === 1,
 );
 check(
-  '§3.1 onboarding: exactly one live row (with the gold chip) and two coming-soon rows',
-  (ONB.match(/^\s+live$/gm) || []).length === 1 &&
-    ONB.includes("badge=\"You're in the right place\"") &&
-    (ONB.match(/\n        disabled\n/g) || []).length === 2,
+  '§3.1 onboarding: the approved badge follows the SELECTION (not a hardcoded row)',
+  /badge=\{path === option \? RIGHT_PLACE_BADGE : undefined\}/.test(ONB) &&
+    /const RIGHT_PLACE_BADGE = "You're in the right place";/.test(ONB) &&
+    /const \[path, setPath\] = useState<PathId>\('christian'\)/.test(ONB) &&
+    (ONB.match(/RIGHT_PLACE_BADGE/g) || []).length === 2,
 );
 check(
   '§3.1 onboarding: the old opacity jail is gone (no pathRowDisabled, no 0.62 opacity in code)',
@@ -564,10 +576,10 @@ check(
   norm(styleBlock(ONB, 'pathRowLive')),
 );
 check(
-  '§3.1 onboarding: the glyph disc is tealTint (live) / card with the hollow sprout (coming soon)',
+  '§3.1 onboarding: the glyph disc is tealTint + solid sprout (selected) / card + hollow sprout (unselected)',
   norm(styleBlock(ONB, 'pathGlyphLive')).includes('backgroundColor: colors.tealTint') &&
     norm(styleBlock(ONB, 'pathGlyphSoon')).includes('backgroundColor: colors.card') &&
-    /<Sprout size=\{18\} color=\{live \? colors\.tealDeep : colors\.inkSoft\} hollow=\{!live\} \/>/.test(ONB),
+    /<Sprout size=\{18\} color=\{selected \? colors\.tealDeep : colors\.inkSoft\} hollow=\{!selected\} \/>/.test(ONB),
 );
 check(
   '§3.1 onboarding: dawn hero = one purpose wash + horizon hairline + a gold sprout above the serif headline',
@@ -602,9 +614,9 @@ check(
     norm(ONB).includes('About a minute \u2014 no signup, no rush.'),
 );
 check(
-  '§3.1 onboarding: a11y — every path row is a radio with selected/disabled state; the CTA is a button',
+  '§3.1 onboarding: a11y — every path row is a radio with a real selected state; the CTA is a button',
   /accessibilityRole="radio"/.test(ONB) &&
-    /accessibilityState=\{\{ selected: !!selected, disabled: !!disabled \}\}/.test(ONB) &&
+    /accessibilityState=\{\{ selected \}\}/.test(ONB) &&
     /accessibilityRole="button"/.test(ONB) &&
     /accessibilityState=\{\{ disabled: busy \}\}/.test(ONB),
 );
@@ -613,11 +625,25 @@ check(
 // 3. §3.5 Paywall
 // ---------------------------------------------------------------------------
 check(
+  // Build 14: availability is derived from the persisted state when it exists,
+  // and NOTHING is claimed before it does (a guessed program would over-claim;
+  // under-claiming for one frame does not).
   '§3.5 paywall: the swatch hero derives availability from the real gate + real names (no invented data)',
-  /visibleThemes\(state \?\? \{ entitlements: \{ tier: 'free' \} \}, day\)/.test(PAY) &&
+  /const available = state \? visibleThemes\(state, day\) : \[\];/.test(PAY) &&
     /THEME_ORDER\.map\(\(t\) => \(\{/.test(PAY) &&
     /name: THEME_LABELS\[t\]/.test(PAY) &&
     /<ThemeSwatchRow items=\{swatchItems\} \/>/.test(PAY),
+);
+check(
+  // Build 14 (§3): the hero's top half — three program marks from the program
+  // gate, above the five swatches, real availability only.
+  '§3.5 paywall: the program row sits above the swatch row, built from programsFor',
+  /import \{ ProgramMarkRow \} from '\.\.\/components\/ProgramMarks';/.test(PAY) &&
+    /const heldPrograms = state \? programsFor\(state\) : \[\];/.test(PAY) &&
+    /held: heldPrograms\.includes\(p\)/.test(PAY) &&
+    /<ProgramMarkRow items=\{programItems\} \/>/.test(PAY) &&
+    PAY.indexOf('<ProgramMarkRow items={programItems} />') < PAY.indexOf('<ThemeSwatchRow items={swatchItems} />') &&
+    /ORNAMENT\} \{PROGRAMS_LABEL\}/.test(PAY),
 );
 check(
   '§3.5 paywall: the swatch card is the hero — `raised` elevation, above the value card',
@@ -632,22 +658,23 @@ check(
     /\{i > 0 \? <View style=\{styles\.bulletRule\} \/> : null\}/.test(PAY),
 );
 check(
-  '§3.5 paywall: the three value bullets are byte-identical to the approved copy',
+  '§3.5 paywall: the three value bullets — bullet 1 is build 14\u2019s rewrite (three programs), 2 and 3 approved copy verbatim',
   norm(PAY).includes(
     norm(
-      "'All five themes, on demand \u2014 not just today\u2019s quest', 'The full quest library, with repeats when a theme helps twice', 'Unlimited Gratitude Glimpses, plus your whole archive'",
+      "'All three programs, and every theme in each, on demand', 'The full quest library, with repeats when a theme helps twice', 'Unlimited Gratitude Glimpses, plus your whole archive'",
     ),
   ),
 );
 check(
-  '§3.5 paywall: the free-forever note is an "already yours" sand strip, copy verbatim',
+  '§3.5 paywall: the free-forever note is an "already yours" sand strip, copy verbatim (build 14: names the one-program rule)',
   norm(styleBlock(PAY, 'freeStrip')).includes('backgroundColor: colors.sand') &&
     norm(PAY).includes(
       norm(
-        'Free, and staying free: the daily quest, Affirmation of the Day, one Glimpse a day, grace streaks, and levels 1\u20135.',
+        'Free, and staying free: the daily quest, Affirmation of the Day, one Glimpse a day, grace streaks, levels 1\u20135, and one program at a time \u2014 yours to choose.',
       ),
     ) &&
     /styles\.freeStripText/.test(PAY) &&
+    /<Text style=\{styles\.freeStripText\}>\{FREE_STRIP\}<\/Text>/.test(PAY) &&
     !/freeNote/.test(PAY),
 );
 check(
@@ -750,9 +777,11 @@ check(
     /tier === 'paid' \? 'PLUS' : 'FREE'/.test(SET),
 );
 check(
-  '§3.6 settings: the mini swatch strip echoes the paywall from the same real derivation',
+  '§3.6 settings: the mini swatch strip echoes the paywall from the same real derivation (inside the held program)',
   /<ThemeSwatchStrip items=\{swatchItems\} style=\{styles\.plusSwatches\} \/>/.test(SET) &&
-    /visibleThemes\(\{ entitlements: \{ tier \} \}, localDateString\(\)\)/.test(SET) &&
+    norm(SET).includes(
+      'visibleThemes( { entitlements: { tier }, profile: { path } }, localDateString(), )',
+    ) &&
     /name: THEME_LABELS\[theme\]/.test(SET),
 );
 check(
@@ -764,8 +793,9 @@ check(
 );
 check(
   '§3.6 settings: legal rows use the drawn chevron and the old \u203a text style is gone',
-  // Two legal rows + build 13's two read-only doors (Kept / Verse). All drawn.
-  (SET.match(/<ChevronMark \/>/g) || []).length === 4 && !/legalChevron/.test(SET),
+  // Two legal rows + build 13's two read-only doors (Kept / Verse) + build 14's
+  // narrow exception (the YOUR PROGRAM row). All drawn, all the same mark.
+  (SET.match(/<ChevronMark \/>/g) || []).length === 5 && !/legalChevron/.test(SET),
 );
 check(
   '§3.6 settings: the title uses the serif display token and wraps at XXXL instead of overflowing',
@@ -888,9 +918,11 @@ check(
   hiddenInline(PAY, 'styles.honestDot'),
 );
 check(
-  'a11y sweep: the coming-soon chip stays announced (its own text, no accessibilityElementsHidden)',
-  /<ComingSoonChip label=\{COMING_SOON_LABEL\} \/>/.test(ONB) &&
-    !/accessibilityElementsHidden[\s\S]{0,120}ComingSoonChip/.test(ONB),
+  // Build 14: the chip that announced a program as "later" is retired along with
+  // the two disabled rows it lived on. Nothing on Onboarding is hidden from
+  // assistive tech in its place — every row is a real, announced choice.
+  'a11y sweep: the coming-soon chip is gone and nothing replaces it as hidden text',
+  !/ComingSoonChip/.test(ONB) && !/coming soon/i.test(code(ONB)),
 );
 const pkg = JSON.parse(readSrc('package.json'));
 check(
