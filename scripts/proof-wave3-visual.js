@@ -293,12 +293,24 @@ function ratio(a, b) {
 }
 const r2 = (n) => Math.round(n * 100) / 100;
 
-/** The screen-side derivation the paywall and Settings both use. */
-const swatchItemsFor = (tier, day) =>
+/**
+ * The screen-side derivation the paywall and Settings both use.
+ *
+ * Build 14: `visibleThemes` resolves the free tier's one visible theme from the
+ * pool of the program the profile HOLDS, so the slice it takes now carries
+ * `profile` as well as `entitlements` — the same persisted snapshot Paywall and
+ * Settings already had. `path` is therefore the derivation's input too: the
+ * free row is read on the Christian program (the default a fresh profile holds),
+ * and the paid row holds all three, where `visibleThemes` returns all 5 themes
+ * regardless of which one is current.
+ */
+const swatchItemsFor = (tier, day, path = 'christian') =>
   gates.THEME_ORDER.map((t) => ({
     theme: t,
     name: THEME_LABELS[t],
-    available: gates.visibleThemes({ entitlements: { tier } }, day).includes(t),
+    available: gates
+      .visibleThemes({ entitlements: { tier }, profile: { path } }, day)
+      .includes(t),
   }));
 
 console.log('--- §3.1 · §3.5 · §3.6  Wave 3 visual richness ---');
@@ -739,16 +751,19 @@ check(
 // ---------------------------------------------------------------------------
 check(
   '§3.6 settings: section labels are SectionHeads (small-caps over a gold hairline), not plain card labels',
-  (SET.match(/<SectionHead label=\{COPY\./g) || []).length === 6 &&
+  // build 13 added a sixth Settings section (KEPT & READING); build 14 adds the
+  // seventh (YOUR PROGRAM, `COPY.programSection`) — the same SectionHead, never a
+  // plain card label. keptSection is still present, so the check still means it.
+  (SET.match(/<SectionHead label=\{COPY\./g) || []).length === 7 &&
     /<SectionHead label=\{COPY\.keptSection\}/.test(SET) &&
     !/cards\.label/.test(SET),
   String((SET.match(/<SectionHead label=\{COPY\./g) || []).length),
 );
 check(
-  '§3.6 settings: all five section heads carry the shared spacing style',
-  // build 13 adds a sixth Settings section (KEPT & READING); every one of them
-  // still wears the same shared spacing style.
-  (SET.match(/<SectionHead label=\{COPY\.\w+\} style=\{styles\.sectionHead\} \/>/g) || []).length === 6,
+  '§3.6 settings: all seven section heads carry the shared spacing style',
+  // build 13 adds a sixth Settings section (KEPT & READING), build 14 a seventh
+  // (YOUR PROGRAM); every one of them still wears the same shared spacing style.
+  (SET.match(/<SectionHead label=\{COPY\.\w+\} style=\{styles\.sectionHead\} \/>/g) || []).length === 7,
 );
 check(
   '§3.6 settings: cards take the `flat` shadow (elevation is information, not decoration)',
