@@ -46,8 +46,9 @@ export const PATH_ORDER: readonly PathId[] = ['christian', 'entrepreneur', 'anxi
 
 /**
  * The quests each program holds. Christian Mindset is the frozen Phase-6 bundle
- * (untouched); the two newer programs are seed sets pending part-2 authoring
- * (see each file's header) and are filled to the lean Option-A target there.
+ * (untouched); the two newer programs ship the lean Option-A bundle that build
+ * 14 part 2 authored — 20 quests / 20 affirmations each, see each file's header.
+ * A program is still nothing but the array its own file exports.
  */
 export const PROGRAM_QUESTS: Record<PathId, readonly Quest[]> = {
   christian: christianQuests,

@@ -319,6 +319,7 @@ const content = loadTs(path.join(REPO, 'src/content/index.ts'));
 const gates = loadTs(path.join(REPO, 'src/subscription/gates.ts'));
 const progress = loadTs(path.join(REPO, 'src/progress/progress.ts'));
 const anxiety = loadTs(path.join(REPO, SRC_FILES.anxiety));
+const entrepreneur = loadTs(path.join(REPO, SRC_FILES.entrepreneur));
 const pickerModule = loadTs(path.join(REPO, SRC_FILES.picker));
 const plusModule = loadTs(path.join(REPO, 'src/components/PlusInvitation.tsx'));
 
@@ -920,14 +921,15 @@ check(
 console.log('\n-- 6. copy discipline (NEW_STRINGS.md, build-14 section) --');
 
 const MANIFEST_ALL = readSrc('NEW_STRINGS.md');
-// Build 14's strings live under their OWN top-level heading; build 13's 41 rows
-// are above it and are proof-keepsakes.js' business. Without this scope the two
-// waves would each be checked against the other's rows.
-const B14 = MANIFEST_ALL.split(/^# Calm Quest — build 14/m)[1] || '';
-const sections = [];
-{
-  const parts = B14.split(/^## /m).slice(1);
-  for (const part of parts) {
+// Build 14 has TWO top-level sections: part 1's UI wording, and part 2's content
+// pass over the two newer programs. Each is parsed on its own — the slice ends at
+// the next `^# ` heading, so neither half can leak into the other's rows — and
+// the halves are checked independently: the UI half by its row numbers (42–73),
+// the content half by walking every rendered field of the two content files.
+/** One manifest slice → its `## ` sections, each with the numbered rows below it. */
+function manifestSections(slice) {
+  const out = [];
+  for (const part of slice.split(/^## /m).slice(1)) {
     const heading = part.split('\n')[0];
     const fileMatch = /`([^`]+)`/.exec(heading);
     const rows = [];
@@ -935,9 +937,14 @@ const sections = [];
       const m = /^\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|\s*(.+?)\s*\|\s*$/.exec(line.trim());
       if (m) rows.push({ n: Number(m[1]), where: m[2], string: m[3] });
     }
-    if (fileMatch && rows.length) sections.push({ heading, file: fileMatch[1].trim(), rows });
+    if (fileMatch && rows.length) out.push({ heading, file: fileMatch[1].trim(), rows });
   }
+  return out;
 }
+const B14 = (MANIFEST_ALL.split(/^# Calm Quest — build 14 new strings/m)[1] || '').split(/^# /m)[0];
+const B14C = MANIFEST_ALL.split(/^# Calm Quest — build 14 — part 2/m)[1] || '';
+const sections = manifestSections(B14);
+const contentSections = manifestSections(B14C);
 const ROW = (n) => {
   for (const s of sections) {
     const r = s.rows.find((x) => x.n === n);
@@ -1093,6 +1100,220 @@ check(
 }
 
 // ---------------------------------------------------------------------------
+// 6b. Part 2 — the content pass, in both directions
+// ---------------------------------------------------------------------------
+
+console.log('\n-- 6b. part 2: the two programs\' content, listed and real --');
+
+{
+  const BUNDLES = [
+    {
+      name: 'Entrepreneur Mindset',
+      file: SRC_FILES.entrepreneur,
+      quests: entrepreneur.entrepreneurQuests,
+      affirmations: entrepreneur.entrepreneurAffirmations,
+      questPrefix: 'q-entrepreneur',
+      affPrefix: 'aff-entrepreneur',
+    },
+    {
+      name: 'Peace & Rest',
+      file: SRC_FILES.anxiety,
+      quests: anxiety.anxietyStressQuests,
+      affirmations: anxiety.anxietyStressAffirmations,
+      questPrefix: 'q-peace',
+      affPrefix: 'aff-peace',
+    },
+  ];
+  const BODY_FIELDS = ['reflection', 'actionPrompt', 'pausePrompt', 'journalPrompt'];
+
+  check(
+    'part 2: the manifest parsed as four content surfaces, naming the two programs\u2019 files in order',
+    contentSections.length === 4 &&
+      contentSections.map((s) => s.file).join(',') ===
+        [SRC_FILES.entrepreneur, SRC_FILES.entrepreneur, SRC_FILES.anxiety, SRC_FILES.anxiety].join(','),
+    contentSections.map((s) => s.file).join(', '),
+  );
+  check(
+    'part 2: rows 74\u2013193, contiguous, and the stated count matches the rows',
+    contentSections.reduce((n, s) => n + s.rows.length, 0) === 120 &&
+      contentSections
+        .flatMap((s) => s.rows.map((r) => r.n))
+        .join(',') === Array.from({ length: 120 }, (_, i) => 74 + i).join(',') &&
+      /120 entries/.test(B14C),
+    String(contentSections.reduce((n, s) => n + s.rows.length, 0)),
+  );
+  {
+    const missing = [];
+    for (const section of contentSections) {
+      const srcNorm = norm(readSrc(section.file));
+      for (const row of section.rows) {
+        const literal = row.string.startsWith('`') && row.string.endsWith('`') ? row.string.slice(1, -1) : row.string;
+        if (!srcNorm.includes(norm(literal))) missing.push(`${section.file}#${row.n} "${literal.slice(0, 40)}"`);
+      }
+    }
+    check(
+      'part 2, manifest \u2192 code: every listed content string is verbatim in the file it names',
+      missing.length === 0,
+      missing.slice(0, 4).join(' | '),
+    );
+  }
+  {
+    // The other direction, taken from the loaded modules: every rendered string.
+    const rendered = [];
+    for (const b of BUNDLES) {
+      for (const q of b.quests) {
+        rendered.push([b.file, q.id, q.title]);
+        const field = BODY_FIELDS.find((f) => q[f]);
+        if (field) rendered.push([b.file, q.id, q[field]]);
+      }
+      for (const a of b.affirmations) rendered.push([b.file, a.id, a.text]);
+    }
+    const unlisted = rendered
+      .filter(([, , t]) => !norm(MANIFEST_ALL).includes(norm(String(t))))
+      .map(([rel, id, t]) => `${rel} ${id}: "${String(t).slice(0, 40)}"`);
+    check(
+      'part 2, code \u2192 manifest: every rendered quest/affirmation string of both programs is listed for the copy pass',
+      unlisted.length === 0 && rendered.length === 120,
+      [...unlisted.slice(0, 4), `${rendered.length} strings`].join(' | '),
+    );
+  }
+
+  check(
+    'part 2: each newer program ships the lean Option-A bundle \u2014 20 quests / 20 affirmations',
+    BUNDLES.every((b) => b.quests.length === 20 && b.affirmations.length === 20),
+    BUNDLES.map((b) => `${b.name}: ${b.quests.length}/${b.affirmations.length}`).join(' \u00b7 '),
+  );
+  check(
+    'part 2: ids are contiguous from 01 (the part-1 seed\u2019s first five, then part 2\u2019s, in every pool)',
+    BUNDLES.every(
+      (b) =>
+        b.quests.every((q, i) => q.id === `${b.questPrefix}-${String(i + 1).padStart(2, '0')}`) &&
+        b.affirmations.every((a, i) => a.id === `${b.affPrefix}-${String(i + 1).padStart(2, '0')}`),
+    ),
+  );
+  check(
+    'part 2: five quests of each type and four quests of each theme, per program',
+    BUNDLES.every((b) => {
+      const types = {};
+      const themes = {};
+      for (const q of b.quests) {
+        types[q.type] = (types[q.type] || 0) + 1;
+        themes[q.theme] = (themes[q.theme] || 0) + 1;
+      }
+      return (
+        Object.values(types).every((n) => n === 5) &&
+        Object.keys(types).length === 4 &&
+        Object.values(themes).every((n) => n === 4) &&
+        Object.keys(themes).length === 5
+      );
+    }),
+    BUNDLES.map((b) => `${b.name}: ${b.quests.length} quests`).join(' \u00b7 '),
+  );
+  check(
+    'part 2: every theme carries all four quest types (a theme is never one-note)',
+    BUNDLES.every((b) => {
+      const byTheme = {};
+      for (const q of b.quests) {
+        byTheme[q.theme] = byTheme[q.theme] || new Set();
+        byTheme[q.theme].add(q.type);
+      }
+      return Object.keys(byTheme).length === 5 && Object.values(byTheme).every((s) => s.size === 4);
+    }),
+  );
+  check(
+    'part 2: four affirmations of each theme, per program',
+    BUNDLES.every((b) => {
+      const themes = {};
+      for (const a of b.affirmations) themes[a.theme] = (themes[a.theme] || 0) + 1;
+      return Object.values(themes).every((n) => n === 4) && Object.keys(themes).length === 5;
+    }),
+  );
+  {
+    // Each quest carries exactly the payload its type renders — no leftover field
+    // from another type, and every Read & Reflect quest is anchored, chipped and
+    // complete (a half-filled quest would render an empty card).
+    const verseLibrary = new Set(content.verses.map((v) => v.id));
+    const wrong = [];
+    for (const b of BUNDLES) {
+      for (const q of b.quests) {
+        const set = BODY_FIELDS.filter((f) => q[f] !== undefined);
+        const only = (f) => set.length === 1 && set[0] === f;
+        if (q.type === 'read_reflect') {
+          if (set.length !== 1 || set[0] !== 'reflection') wrong.push(`${q.id}: read_reflect body`);
+          if (!q.verseId || !verseLibrary.has(q.verseId)) wrong.push(`${q.id}: verseId`);
+          if (!Array.isArray(q.checkInOptions) || q.checkInOptions.length !== 3) wrong.push(`${q.id}: chips`);
+        } else if (q.type === 'act') {
+          if (!only('actionPrompt')) wrong.push(`${q.id}: act body`);
+          if (q.verseId || q.durationSeconds || q.checkInOptions) wrong.push(`${q.id}: act extra`);
+        } else if (q.type === 'pause') {
+          if (!only('pausePrompt')) wrong.push(`${q.id}: pause body`);
+          if (q.durationSeconds !== 60) wrong.push(`${q.id}: pause duration`);
+          if (q.verseId || q.checkInOptions) wrong.push(`${q.id}: pause extra`);
+        } else if (q.type === 'write') {
+          if (!only('journalPrompt')) wrong.push(`${q.id}: write body`);
+          if (q.verseId || q.durationSeconds || q.checkInOptions) wrong.push(`${q.id}: write extra`);
+        } else {
+          wrong.push(`${q.id}: unknown type ${q.type}`);
+        }
+        if (q.title.split(' ').length > 6) wrong.push(`${q.id}: title too long`);
+      }
+    }
+    check(
+      'part 2: every quest carries exactly its type\u2019s payload, a \u2264 6-word title, 60s pauses and 3 chips',
+      wrong.length === 0,
+      wrong.slice(0, 5).join(' | '),
+    );
+    check(
+      'part 2: verseIds come only from the shared 60-verse library (no new verse, no paraphrase)',
+      content.verses.length === 60 &&
+        BUNDLES.every((b) => b.quests.filter((q) => q.verseId).every((q) => verseLibrary.has(q.verseId))),
+      `${content.verses.length} verses`,
+    );
+    check(
+      'part 2: every affirmation is one sentence (no second sentence smuggled in)',
+      BUNDLES.every((b) =>
+        b.affirmations.every((a) => !/\.\s/.test(a.text) && /[.!?]$/.test(a.text.trim())),
+      ),
+    );
+    // Chips may only use words the app already ships. The allowed set is DERIVED
+    // from the frozen Christian bundle plus the part-1 seed's one added chip, so a
+    // new chip word cannot enter through the content pass unnoticed.
+    const allowed = new Set(['Purpose']);
+    for (const q of questPool('christian')) {
+      for (const c of q.checkInOptions || []) allowed.add(c.label);
+    }
+    const strayChips = [];
+    for (const b of BUNDLES) {
+      for (const q of b.quests) {
+        for (const c of q.checkInOptions || []) if (!allowed.has(c.label)) strayChips.push(`${q.id}: ${c.label}`);
+      }
+    }
+    check(
+      'part 2: check-in chips introduce no new chip word (all drawn from the app\u2019s existing set)',
+      strayChips.length === 0,
+      [...strayChips, `allowed: ${[...allowed].join(' \u00b7 ')}`].join(' | '),
+    );
+  }
+  check(
+    'part 2: both content headers record the completed 20/20 authoring pass (the checklist each file carries)',
+    /PART 2 COMPLETE/.test(SRC.entrepreneur) &&
+      /20 quests \/ 20 affirmations/.test(SRC.entrepreneur) &&
+      /PART 2 COMPLETE/.test(SRC.anxiety) &&
+      /PENDING PART-2/.test(SRC.entrepreneur) === false &&
+      /PENDING PART-2/.test(SRC.anxiety) === false,
+  );
+  check(
+    'part 2: no user-visible string in either program promises an outcome or sells hype',
+    BUNDLES.every((b) =>
+      [...b.quests, ...b.affirmations].every((item) => {
+        const text = JSON.stringify(item);
+        return !/\b(guarantee[sd]?|10x|crush it|hustle harder|overnight success|get rich|will make you)\b/i.test(text);
+      }),
+    ),
+  );
+}
+
+// ---------------------------------------------------------------------------
 // 7. The Peace & Rest guardrails (on comment-stripped source)
 // ---------------------------------------------------------------------------
 
@@ -1116,8 +1337,14 @@ const SRC_ALL = walkSrc('src');
     /May say/.test(raw) && /Must never say/.test(raw) && /nervous system/.test(raw) && /treats\/cures\/heals/.test(raw),
   );
   check(
-    'guardrail: the header is the binding checklist for part-2 authoring, and points at the seed-set target',
-    /SEED SET — PENDING PART-2 AUTHORING/.test(raw) && /20 quests \/ 20 affirmations/.test(raw),
+    'guardrail: the header is the binding checklist for part-2 authoring, and records the 20/20 target as met',
+    /CONTENT GUARDRAILS/.test(raw) &&
+      /May say/.test(raw) &&
+      /Must never say/.test(raw) &&
+      /treats\/cures\/heals/.test(raw) &&
+      /20 quests \/ 20 affirmations/.test(raw) &&
+      /PART 2 COMPLETE/.test(raw) &&
+      !/PENDING PART-2 AUTHORING/.test(raw),
   );
   // Identifiers legitimately carry the program's spec id (`anxietyStressQuests`)
   // — they are names, not copy. Everything else must be clean.
