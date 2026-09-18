@@ -186,6 +186,11 @@ const COPY = {
   soundOff: 'Sound off — quiet mode',
   soundSub:
     'A sound preference for the gentle chime in the pause quest and the reminder. No bundled sound plays in this MVP yet — this setting is saved and ready to wire the moment audio lands.',
+  // Build 13 — the "stay a while" doors (proposal §2 A/D/I). Both open
+  // read-only surfaces: they grant no XP, change no setting, and never notify.
+  keptSection: 'KEPT & READING',
+  keptRow: 'Everything you have kept',
+  versesRow: 'Sit with a verse',
   accountSection: 'ACCOUNT & DATA',
   signInNote:
     'Sign-in comes with Calm Quest+ accounts — arriving with the real backend. Until then you travel anonymously; everything stays on this device.',
@@ -774,6 +779,30 @@ export default function SettingsScreen() {
         ) : null}
       </View>
 
+      {/* Build 13 (proposal §2 A/D/I): the "stay a while" doors — the kept
+          archive (with the saved affirmations) and the zero-XP verse reader.
+          Plain doors, drawn chevrons, no hue: they open reading surfaces that
+          grant no XP, change no setting, and never notify. */}
+      <SectionHead label={COPY.keptSection} style={styles.sectionHead} />
+      <View style={[cards.card, styles.reminderCard]}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => navigation.navigate('Kept')}
+          style={({ pressed }) => [styles.legalRow, pressed && styles.pressed]}
+        >
+          <Text style={styles.legalRowText}>{COPY.keptRow}</Text>
+          <ChevronMark />
+        </Pressable>
+        <View style={styles.accountDivider} />
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => navigation.navigate('Verse')}
+          style={({ pressed }) => [styles.legalRow, pressed && styles.pressed]}
+        >
+          <Text style={styles.legalRowText}>{COPY.versesRow}</Text>
+          <ChevronMark />
+        </Pressable>
+      </View>
       {/* Phase 5 (F9): Account & Data — Log out only when a REAL auth service
           exists (stub isAvailable() = false, so today this is the honest
           "coming soon" note; NEVER a fabricated signed-out state). Delete my

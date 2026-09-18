@@ -47,6 +47,7 @@ import {
   verses,
 } from '../content';
 import { analytics } from '../analytics';
+import { KeptThisWeekStrip } from '../components/KeptThisWeekStrip';
 import type { AppRouteParamList } from '../navigation/types';
 import type { Quest, QuestTheme, Verse } from '../models/types';
 import {
@@ -674,6 +675,15 @@ export default function HomeScreen() {
       ) : (
         <Text style={cards.subtitle}>Quest library empty — nothing to show today.</Text>
       )}
+
+      {/* Build 13 (proposal §2 H): the "Kept this week" strip — one quiet card
+          directly after the quest card, the door to the kept archive. It reads
+          the persisted ledgers and grants nothing; FREE sees the 3 newest rows,
+          Calm Quest+ gets the link into the whole archive. No badges, no "new"
+          markers, no scroll, no notification. */}
+      {state ? (
+        <KeptThisWeekStrip state={state} onOpenArchive={() => navigation.navigate('Kept')} />
+      ) : null}
 
       {/* Phase 4b (§5): the paid bonus quest — renders ONLY when
           bonusQuestAvailable (paid tier, none used today) yields a pick.
