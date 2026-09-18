@@ -59,9 +59,15 @@ export type { Quest, Affirmation, GratitudePrompt, Verse };
  * colophon must never overstate: the counts it prints are lengths of real
  * arrays, not targets — 60 quests / 75 affirmations for Christian Mindset, and
  * 20 / 20 for each of the two programs build 14 part 2 authored.
+ *
+ * Build 14 release: 1.2.0 — 1.1.0 was the state where the two newer programs
+ * shipped part-1 seed sets (5 quests / 5 affirmations) awaiting part 2. Part 2
+ * is complete and owner-approved, so every program now ships complete sets and
+ * the seed-set caveat no longer applies to this bundle. Content only; no copy,
+ * pool length or schema changed with this bump.
  */
 export const CONTENT_META = {
-  version: '1.1.0',
+  version: '1.2.0',
   note: 'In-house content pack — three programs, shared prompts and WEB verses',
   attribution:
     'Scripture from the World English Bible (WEB), public domain. All other content written in-house for Calm Quest.',
