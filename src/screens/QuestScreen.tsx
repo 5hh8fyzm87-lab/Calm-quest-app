@@ -32,8 +32,8 @@ import {
 import {
   QUEST_TYPE_LABELS,
   QUEST_TYPE_INTROS,
+  questById,
   THEME_LABELS,
-  quests,
   verses,
 } from '../content';
 import { analytics } from '../analytics';
@@ -80,10 +80,14 @@ function verseFor(verseId: string | undefined): Verse | undefined {
   return verses.find((v) => v.id === verseId);
 }
 
-/** Today's screen quest: the one the user tapped on Home. */
-function questById(id: string): Quest | undefined {
-  return quests.find((q) => q.id === id);
-}
+/**
+ * Today's screen quest: the one the user tapped on Home.
+ *
+ * Build 14 (two-paths §3): id resolution goes through `ALL_QUESTS` (the content
+ * barrel's `questById`), NOT the program the profile currently holds. A quest
+ * completed this morning must still open — with its real text — after a mid-day
+ * program switch; resolving against the current pool would make it vanish.
+ */
 
 // ---------------------------------------------------------------------------
 // Level-up moment (Flow D) — the peak moment, escalated to a full-screen

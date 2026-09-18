@@ -19,7 +19,7 @@
  *    none — so nothing here invents one.
  */
 
-import { affirmations, prompts, quests, THEME_LABELS } from '../content';
+import { ALL_AFFIRMATIONS, prompts, questById, THEME_LABELS } from '../content';
 import type { Affirmation, GlimpseEntry, QuestTheme } from '../models/types';
 import type { AppState } from '../storage/store';
 import { THEME_ORDER } from '../subscription/gates';
@@ -163,9 +163,16 @@ export function promptTextFor(entry: Pick<GlimpseEntry, 'promptId'>): string | n
 // D — saved affirmations (never gated: a user's own kept words)
 // ---------------------------------------------------------------------------
 
-/** Every saved affirmation, in the order the user saved them (oldest first). */
+/**
+ * Every saved affirmation, in the order the user saved them (oldest first).
+ *
+ * Build 14 (two-paths §3): resolved against `ALL_AFFIRMATIONS` — the id-lookup
+ * index over every program — never the pool of the program the profile happens
+ * to hold today. An affirmation saved while a different program was held is the
+ * user's own kept words and must still resolve after a switch.
+ */
 export function savedAffirmations(state: Pick<AppState, 'savedAffirmationIds'>): Affirmation[] {
-  const byId = new Map(affirmations.map((a) => [a.id, a]));
+  const byId = new Map(ALL_AFFIRMATIONS.map((a) => [a.id, a]));
   const out: Affirmation[] = [];
   for (const id of state.savedAffirmationIds) {
     const found = byId.get(id);
@@ -265,7 +272,10 @@ export function keptHighlights(
   const completions = state.quests.completions;
   const lastCompletion = completions[completions.length - 1];
   if (lastCompletion) {
-    const title = quests.find((q) => q.id === lastCompletion.questId)?.title;
+    // Build 14 (two-paths §3): the title resolves through ALL_QUESTS (via
+    // `questById`), so a quest completed under another program is still named
+    // correctly here. Still no fallback name: unresolvable → row not rendered.
+    const title = questById(lastCompletion.questId)?.title;
     // No title resolvable → the row is not rendered rather than named wrongly.
     if (title) out.push({ kind: 'quest', id: lastCompletion.questId, date: lastCompletion.date, text: title });
   }
