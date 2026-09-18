@@ -228,7 +228,11 @@ function entryFor(date, text) {
     paidThemes.length === 5 && JSON.stringify(paidThemes) === JSON.stringify(THEME_ORDER),
   );
   check('canBrowseThemes: free false, paid true', canBrowseThemes(defaultState()) === false && canBrowseThemes(simulatedPaidState(defaultState())) === true);
-  const counts = themeQuestCounts();
+  // Build 14: the count is a pool parameter now — with three programs there is
+  // no single bundle to count, so the caller names the pool. This fixture uses
+  // the frozen Christian bundle, which is what `quests` IS (and what
+  // questPool('christian') returns), so its numbers must be unchanged.
+  const counts = themeQuestCounts(quests);
   check(
     'themeQuestCounts reflects the real bundle (60 quests; each of the 5 themes holds ≥ 12)',
     Object.values(counts).reduce((a, b) => a + b, 0) === 60 &&

@@ -38,12 +38,15 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { analytics } from '../analytics';
-import { THEME_LABELS } from '../content';
+import { ProgramMarkRow } from '../components/ProgramMarks';
+import type { ProgramMarkItem } from '../components/ProgramMarks';
+import { PATH_LABELS, PATH_ORDER, THEME_LABELS } from '../content';
 import type { AppRouteParamList } from '../navigation/types';
 import { loadState, markPaywallSeen } from '../storage/store';
 import type { AppState } from '../storage/store';
 import {
   authService,
+  programsFor,
   runTrialFlow,
   SUBSCRIPTION_PLANS,
   subscriptionService,
@@ -71,12 +74,31 @@ import type { ThemeSwatchItem } from '../theme';
 
 type Nav = NativeStackNavigationProp<AppRouteParamList, 'Paywall'>;
 
-/** The spec's three-bullet value recap (Flow E step 2 — three, not more). */
+/**
+ * The spec's three-bullet value recap (Flow E step 2 — three, not more).
+ *
+ * Build 14 (two-paths §3): bullet 1 is the proposal's exact proposed rewrite —
+ * with three programs in the app, "all five themes, on demand" understated what
+ * is held. Bullets 2 and 3 stay VERBATIM and become more true (the library is
+ * per program now, and the archive behind bullet 3 exists since build 13).
+ */
 const VALUE_BULLETS: readonly string[] = [
-  'All five themes, on demand — not just today\u2019s quest',
+  'All three programs, and every theme in each, on demand',
   'The full quest library, with repeats when a theme helps twice',
   'Unlimited Gratitude Glimpses, plus your whole archive',
 ];
+
+/**
+ * The free strip (build 14, proposal §3 optional edit): the honest free promise
+ * now names the program rule too, because that is what the paywall is really
+ * selling — holding all three at once, not access to a single one.
+ */
+const FREE_STRIP =
+  'Free, and staying free: the daily quest, Affirmation of the Day, one Glimpse a day, grace streaks, levels 1–5, and one program at a time — yours to choose.';
+
+/** The label above the program marks (build 14). The gold ✦ carries no words. */
+const PROGRAMS_LABEL = 'PROGRAMS';
+const ORNAMENT = '✦';
 
 /**
  * Honest copy per ending. Every one of these means "nothing was charged unless
@@ -225,14 +247,26 @@ export default function PaywallScreen({
 
   // The swatch row's availability comes from the app's REAL gate derivation —
   // never a guess about what this user holds. Until the first load resolves the
-  // honest baseline is 'free': a paid user cannot reach this screen at all
-  // (`paywallSurface` returns null for a paid tier).
+  // honest baseline claims NOTHING: a paid user cannot reach this screen at all
+  // (`paywallSurface` returns null for a paid tier), and a free user's held
+  // theme is decided by the program their profile holds, which is not known
+  // until the state lands. Under-claiming for one frame, never a guess.
   const day = today();
-  const available = visibleThemes(state ?? { entitlements: { tier: 'free' } }, day);
+  const available = state ? visibleThemes(state, day) : [];
   const swatchItems: ThemeSwatchItem[] = THEME_ORDER.map((t) => ({
     theme: t,
     name: THEME_LABELS[t],
     available: available.includes(t),
+  }));
+
+  // Build 14 (two-paths §3): the program row above it obeys the identical rule —
+  // `programsFor` IS the gate, and before the load lands the honest answer is
+  // "nothing is held yet" rather than a guessed program.
+  const heldPrograms = state ? programsFor(state) : [];
+  const programItems: ProgramMarkItem[] = PATH_ORDER.map((p) => ({
+    path: p,
+    name: PATH_LABELS[p],
+    held: heldPrograms.includes(p),
   }));
 
   return (
@@ -252,10 +286,23 @@ export default function PaywallScreen({
         of it, on your schedule.
       </Text>
 
-      {/* The hero: five tinted marks with their REAL names — filled for the
-          themes this user holds, tint at ~55% + a gold hairline for the rest.
-          §3.5.1's picture of bullet #1, drawn from real data only. */}
+      {/* The hero (build 14, two-paths §3): the three PROGRAMS at mark scale
+          above the five theme swatches, so the offer reads "three programs, and
+          every theme in each" rather than "five themes". Both rows are drawn
+          from real data only: filled/held = `programsFor` / `visibleThemes`,
+          sand + gold hairline = "there is more here". §3.5.1's picture of
+          bullet #1. */}
       <View style={[cards.card, styles.swatchCard]}>
+        <View style={styles.programMarks}>
+          <Text
+            style={[typeScale.ornament, styles.programMarksLabel]}
+            accessibilityLabel="Programs"
+          >
+            {ORNAMENT} {PROGRAMS_LABEL}
+          </Text>
+          <ProgramMarkRow items={programItems} />
+        </View>
+        <View style={styles.heroRule} />
         <ThemeSwatchRow items={swatchItems} />
       </View>
 
@@ -271,12 +318,10 @@ export default function PaywallScreen({
             </View>
           </View>
         ))}
-        {/* "Already yours" — the free-forever note, copy verbatim, on sand. */}
+        {/* "Already yours" — the free-forever note, on sand. Build 14: the copy
+            now names the one-program rule (proposal §3's optional edit). */}
         <View style={styles.freeStrip}>
-          <Text style={styles.freeStripText}>
-            Free, and staying free: the daily quest, Affirmation of the Day, one
-            Glimpse a day, grace streaks, and levels 1–5.
-          </Text>
+          <Text style={styles.freeStripText}>{FREE_STRIP}</Text>
         </View>
       </View>
 
@@ -425,6 +470,23 @@ const styles = StyleSheet.create({
     // level-up overlay and this one).
     ...shadows.raised,
     marginBottom: spacing.md,
+  },
+  /** Build 14: the program block at the top of the hero. */
+  programMarks: {
+    marginBottom: spacing.sm,
+  },
+  programMarksLabel: {
+    // The one eyebrow label above the marks — the value bullets' gold ✦ grammar,
+    // letter-spaced like every other uppercase label in the app.
+    fontWeight: '700',
+    letterSpacing: 0.9,
+    marginBottom: spacing.sm,
+  },
+  /** The hairline that separates the program row from the theme swatch row. */
+  heroRule: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.rule,
+    marginVertical: spacing.md,
   },
   valueCard: {
     marginBottom: spacing.md,

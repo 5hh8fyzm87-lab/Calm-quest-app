@@ -84,6 +84,9 @@ export {
   bonusQuestAvailable,
   pickBonusQuest,
 } from './gates';
+// Build 14 (two-paths §1/§3): the program-level mirror of the theme gate —
+// free holds one program, Calm Quest+ holds all three, switching is free.
+export { canSwitchPrograms, programsFor } from './gates';
 
 // Phase 4b: AuthService seam (F10 continuation) — same one-file-swap pattern.
 export type { AuthService, AuthResult, AuthUnavailableReason } from './auth';

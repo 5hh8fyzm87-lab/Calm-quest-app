@@ -2,10 +2,10 @@
  * Calm Quest — Onboarding (Flow A, feature spec §2).
  *
  * One screen, ≈60s, no account wall. Warm hero copy, then path selection:
- * Christian Mindset preselected and featured; Entrepreneur + Anxiety shown
- * as disabled "Coming soon" rows (tap → gentle note via Alert). One "Begin"
- * CTA saves the profile (`path: 'christian'`, `onboarded: true`) through the
- * existing AsyncStorage store and navigates to Home.
+ * three REAL program rows (Christian Mindset preselected, the others a tap
+ * away), one "Begin" CTA that saves the profile (`path: <the chosen program>`,
+ * `onboarded: true`) through the existing AsyncStorage store and navigates to
+ * Home.
  *
  * Guardrails: no medical claims, no guaranteed outcomes, no scarcity/urgency.
  *
@@ -18,6 +18,18 @@
  * fine print as a vellum note with a hairline left rule. Presentation only:
  * the flow, the storage path, the alert copy and every approved string are
  * untouched.
+ *
+ * Build 14 (two-paths §2, Flow A): the two "coming soon" rows became REAL
+ * radio rows. All three programs are live, one is selected, the "Coming soon"
+ * chip and its alert retire (3 strings, listed as retired in NEW_STRINGS.md),
+ * the approved badge "You're in the right place" moves from the hardcoded row
+ * to the SELECTED row, each row gains one one-liner (draft copy for the copy
+ * pass), and `Begin` writes the path the user actually chose instead of a
+ * hardcoded 'christian'. The row grammar is unchanged — the selected row wears
+ * the live pair (card + 3px teal edge + tealTint glyph + filled sprout + the
+ * dotted radio), an unselected row wears the sand pair with the hollow sprout
+ * and an empty radio. The existing hint "You can change this anytime." is
+ * finally, literally true (Settings → YOUR PROGRAM, or Home's PROGRAMS card).
  */
 
 import { useNavigation } from '@react-navigation/native';
@@ -26,7 +38,9 @@ import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AppRouteParamList } from '../navigation/types';
-import { PATH_LABELS } from '../content';
+import { analytics } from '../analytics';
+import { PATH_LABELS, PATH_ORDER } from '../content';
+import type { PathId } from '../models/types';
 import { loadState, saveState } from '../storage/store';
 import type { AppState } from '../storage/store';
 import {
@@ -34,7 +48,6 @@ import {
   buttons,
   cards,
   colors,
-  ComingSoonChip,
   page,
   radii,
   shadows,
@@ -49,71 +62,79 @@ import {
 const HERO_COPY =
   'Faith-first mindset training, made playful. One gentle quest a day — miss a day and you pick up right where you left off.';
 
+// --- COPY (build 14) — mirrored verbatim in NEW_STRINGS.md ---
 /**
- * The one approved copy addition of this wave (visual-direction §3.1.2 /
- * §5 rule 10): the visible chip on the disabled rows, which restores the
- * spec's Flow A step 2 wording. Nothing else on this screen is new text.
+ * The approved badge, lifted verbatim from the hardcoded Christian row: it now
+ * belongs to whichever row is SELECTED, which is what it always meant.
  */
-const COMING_SOON_LABEL = 'Coming soon';
+const RIGHT_PLACE_BADGE = "You're in the right place";
+
+/**
+ * One one-liner per program row (build 14, Flow A). DRAFT COPY for the owner's
+ * copy pass — each says what the program is for in the app's own voice, with no
+ * medical or outcome claim (the Peace & Rest one stays inside the program's
+ * guardrails: everyday language only, promise the practice, never the result).
+ */
+const PATH_ONE_LINERS: Record<PathId, string> = {
+  christian: 'Scripture-aligned quests, affirmations and gentle reflection.',
+  entrepreneur: 'The same daily practice, for the life of building something.',
+  anxiety_stress: 'Comfort and quiet for the heavy days, at the pace you can keep.',
+};
+// --- /COPY ---
 
 type Nav = NativeStackNavigationProp<AppRouteParamList, 'Onboarding'>;
 
 /**
- * A path row: featured Christian (preselected, live today) + disabled
- * coming-soon rows. Availability is expressed by the FILL and the glyph's
- * weight — never by an opacity jail over the label (§1c).
+ * A path row: three real radio rows now (build 14) — availability and state are
+ * carried by the FILL, the glyph's weight and the radio, never by an opacity
+ * jail over the label (§1c).
  */
 function PathRow({
   label,
+  sub,
   badge,
-  live,
   selected,
-  disabled,
   onPress,
 }: {
   label: string;
+  sub: string;
   badge?: string;
-  live?: boolean;
-  selected?: boolean;
-  disabled?: boolean;
+  selected: boolean;
   onPress: () => void;
 }) {
   return (
     <Pressable
       accessibilityRole="radio"
-      accessibilityState={{ selected: !!selected, disabled: !!disabled }}
-      disabled={disabled}
+      accessibilityState={{ selected }}
+      accessibilityLabel={label}
+      accessibilityHint={sub}
       onPress={onPress}
       style={({ pressed }) => [
         styles.pathRow,
-        live ? styles.pathRowLive : styles.pathRowSoon,
-        pressed && !disabled && styles.pathRowPressed,
+        selected ? styles.pathRowLive : styles.pathRowSoon,
+        pressed && styles.pathRowPressed,
       ]}
     >
-      {/* Glyph disc: teal-tint + solid sprout when live, card + outline-only
-          sprout when the path is not here yet. */}
-      <View style={[styles.pathGlyph, live ? styles.pathGlyphLive : styles.pathGlyphSoon]}>
-        <Sprout size={18} color={live ? colors.tealDeep : colors.inkSoft} hollow={!live} />
+      {/* Glyph disc: teal-tint + solid sprout on the selected row, card +
+          outline-only sprout on a row you have not chosen. */}
+      <View style={[styles.pathGlyph, selected ? styles.pathGlyphLive : styles.pathGlyphSoon]}>
+        <Sprout size={18} color={selected ? colors.tealDeep : colors.inkSoft} hollow={!selected} />
       </View>
 
       <View style={styles.pathRowLeft}>
-        <Text style={[styles.pathLabel, disabled && styles.textDisabled]}>{label}</Text>
+        <Text style={[styles.pathLabel, !selected && styles.textUnselected]}>{label}</Text>
+        <Text style={styles.pathSub}>{sub}</Text>
         {badge ? (
           <View style={[badges.chip, badges.gold]}>
             <Text style={[badges.chipText, badges.goldText]}>{badge}</Text>
           </View>
         ) : null}
-        {disabled ? <ComingSoonChip label={COMING_SOON_LABEL} /> : null}
       </View>
 
-      {/* A disabled row is not an unselected choice, so it draws no radio —
-          the sand fill, the outline glyph and the chip already say "not yet".
-          Its a11y state (role `radio`, disabled) is unchanged. */}
-      {disabled ? null : (
-        <View style={[styles.radio, live && styles.radioLive]}>
-          {live ? <View style={styles.radioDot} /> : null}
-        </View>
-      )}
+      {/* Every row is a real choice now, so every row draws its radio. */}
+      <View style={[styles.radio, selected && styles.radioLive]}>
+        {selected ? <View style={styles.radioDot} /> : null}
+      </View>
     </Pressable>
   );
 }
@@ -125,8 +146,9 @@ export default function OnboardingScreen() {
   const screenInsets = useScreenInsets(spacing.xl, spacing.xl);
   const [busy, setBusy] = useState(false);
 
-  // Christian is preselected per Flow A step 2; the other rows are disabled.
-  const path: AppState['profile']['path'] = 'christian';
+  // Christian is preselected per Flow A step 2; all three rows are live and the
+  // badge follows the selection (build 14).
+  const [path, setPath] = useState<PathId>('christian');
 
   async function begin() {
     if (busy) return;
@@ -138,6 +160,9 @@ export default function OnboardingScreen() {
         profile: { ...state.profile, path, onboarded: true },
       };
       await saveState(next);
+      // Build 14 (S5): the FIRST program choice, tracked only after the choice
+      // was actually persisted — never on a tap that failed to save.
+      analytics.track('program_selected', { path });
       navigation.navigate('Home');
     } catch {
       Alert.alert(
@@ -146,14 +171,6 @@ export default function OnboardingScreen() {
       );
       setBusy(false);
     }
-  }
-
-  function comingSoon(label: string) {
-    Alert.alert(
-      `${label} is coming soon`,
-      'This path is on the way. For now, Christian Mindset is where the quests are — and it is yours for free.',
-      [{ text: 'Sounds good' }],
-    );
   }
 
   return (
@@ -185,31 +202,23 @@ export default function OnboardingScreen() {
         <Text style={styles.heroCopy}>{HERO_COPY}</Text>
       </View>
 
-      {/* Path selection */}
+      {/* Path selection — three real rows (build 14). The approved badge marks
+          the SELECTED row, and every row is a choice you can take. */}
       <View style={styles.sectionHead}>
         <Text style={cards.label}>Choose your path</Text>
         <Text style={styles.sectionHint}>You can change this anytime.</Text>
       </View>
 
-      <PathRow
-        label="Christian Mindset"
-        badge="You're in the right place"
-        live
-        selected
-        onPress={() => {
-          // Preselected; tapping keeps it — navigation begins below.
-        }}
-      />
-      <PathRow
-        label={PATH_LABELS.entrepreneur}
-        disabled
-        onPress={() => comingSoon(PATH_LABELS.entrepreneur)}
-      />
-      <PathRow
-        label={PATH_LABELS.anxiety_stress}
-        disabled
-        onPress={() => comingSoon(PATH_LABELS.anxiety_stress)}
-      />
+      {PATH_ORDER.map((option) => (
+        <PathRow
+          key={option}
+          label={PATH_LABELS[option]}
+          sub={PATH_ONE_LINERS[option]}
+          badge={path === option ? RIGHT_PLACE_BADGE : undefined}
+          selected={path === option}
+          onPress={() => setPath(option)}
+        />
+      ))}
 
       {/* Fine print as a vellum note with a hairline left rule. */}
       <View style={styles.finePrint}>
@@ -314,7 +323,7 @@ const styles = StyleSheet.create({
     borderLeftColor: colors.teal,
   },
   pathRowSoon: {
-    // Coming soon: sand fill, full-opacity ink, no opacity jail (§1c).
+    // Unselected row: sand fill, full-opacity ink, no opacity jail (§1c).
     backgroundColor: colors.sand,
     borderWidth: 1,
     borderColor: colors.paperEdge,
@@ -345,8 +354,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.ink,
   },
-  textDisabled: {
-    // FULL `inkSoft` opacity — the fill and the glyph weight carry "not yet".
+  /** The one-line "what this program is for", under the row's label. */
+  pathSub: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.inkSoft,
+  },
+  textUnselected: {
+    // FULL `inkSoft` opacity — the fill and the glyph weight carry "not chosen".
     color: colors.inkSoft,
   },
   radio: {

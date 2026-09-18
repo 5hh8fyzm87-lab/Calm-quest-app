@@ -79,7 +79,8 @@ import {
 
 import { analytics } from '../analytics';
 import { UpgradeInvitation } from '../components/UpgradeInvitation';
-import { THEME_LABELS } from '../content';
+import { PATH_LABELS, THEME_LABELS } from '../content';
+import type { PathId } from '../models/types';
 import type { AppRouteParamList } from '../navigation/types';
 import {
   canDeliverReminders,
@@ -191,6 +192,11 @@ const COPY = {
   keptSection: 'KEPT & READING',
   keptRow: 'Everything you have kept',
   versesRow: 'Sit with a verse',
+  // Build 14 — the program door (two-paths §2: Settings → "YOUR PROGRAM").
+  // Opens the picker; the row's sub-line names the program currently held.
+  programSection: 'YOUR PROGRAM',
+  programRow: 'Choose your program',
+  programRowHint: 'Opens the picker. Your streak, XP and everything you have kept stay as they are.',
   accountSection: 'ACCOUNT & DATA',
   signInNote:
     'Sign-in comes with Calm Quest+ accounts — arriving with the real backend. Until then you travel anonymously; everything stays on this device.',
@@ -275,6 +281,9 @@ export default function SettingsScreen() {
 
   // Phase 4b — Calm Quest+ section state (Phase 7: real store outcomes).
   const [tier, setTier] = useState<'free' | 'paid'>('free');
+  // Build 14 — the program the profile holds, read on every focus with the rest
+  // of the persisted truth (the picker writes it, this row reports it).
+  const [path, setPath] = useState<PathId>('christian');
   const [restoring, setRestoring] = useState(false);
   const [restoreNote, setRestoreNote] = useState<null | { title: string; copy: string }>(null);
   const [manageNote, setManageNote] = useState<null | { title: string; copy: string }>(null);
@@ -301,6 +310,8 @@ export default function SettingsScreen() {
         // writers are applyEntitlement (verified entitlements) and the local
         // expiry reconciliation below. A store re-check happens further down.
         setTier(s.entitlements.tier);
+        // Build 14: the held program, reported by the YOUR PROGRAM row.
+        setPath(s.profile.path);
         // Phase 7: a paid period whose store-reported expiry has PASSED is
         // downgraded here, locally and honestly — the expiry came from the
         // store's own transaction. Nothing else can ever lower a tier (a store
@@ -359,9 +370,14 @@ export default function SettingsScreen() {
   const timeLabel = formatReminderTime(t);
 
   // The Calm Quest+ card's mini swatch strip (§3.6.3) uses the same REAL gate
-  // derivation as the paywall and Home: paid holds all five, free holds today's
-  // theme. `tier` here is the reconciled, persisted truth — never a guess.
-  const heldThemes = visibleThemes({ entitlements: { tier } }, localDateString());
+  // derivation as the paywall and Home: paid holds all five themes, free holds
+  // today's theme — inside the program the profile holds (build 14, which is
+  // why the gate now takes the profile too). `tier`/`path` here are the
+  // reconciled, persisted truth — never a guess.
+  const heldThemes = visibleThemes(
+    { entitlements: { tier }, profile: { path } },
+    localDateString(),
+  );
   const swatchItems: ThemeSwatchItem[] = THEME_ORDER.map((theme) => ({
     theme,
     name: THEME_LABELS[theme],
@@ -708,6 +724,28 @@ export default function SettingsScreen() {
           Reminders are free and can never be sold or gated. There is no paid
           reminder tier — only this one.
         </Text>
+      </View>
+
+      {/* Build 14 (two-paths §2): YOUR PROGRAM — the door to the picker, with
+          the program currently held named in words (never by colour alone) and
+          a plain drawn chevron. Switching resets nothing: the picker's one
+          honest line says so, and the streak/XP/kept ledgers never mention a
+          program at all. */}
+      <SectionHead label={COPY.programSection} style={styles.sectionHead} />
+      <View style={[cards.card, styles.reminderCard]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${COPY.programRow}, currently ${PATH_LABELS[path]}`}
+          accessibilityHint={COPY.programRowHint}
+          onPress={() => navigation.navigate('Programs')}
+          style={({ pressed }) => [styles.legalRow, pressed && styles.pressed]}
+        >
+          <View style={styles.rowText}>
+            <Text style={styles.legalRowText}>{COPY.programRow}</Text>
+            <Text style={styles.rowSub}>{PATH_LABELS[path]}</Text>
+          </View>
+          <ChevronMark />
+        </Pressable>
       </View>
 
       {/* Phase 4b — Calm Quest+ section (§5). Honest tier display; restore +

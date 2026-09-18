@@ -36,6 +36,13 @@
  *  - subscription_manage_opened — the user tapped Manage subscription (Phase 7;
  *                             records the tap itself, never a claim that the
  *                             store's screen actually opened)
+ *  - program_selected       — a program was chosen (build 14): the FIRST choice
+ *                             on onboarding. Fired only after the choice was
+ *                             persisted, never on a tap that failed to save.
+ *  - program_switched       — the held program changed (build 14), from the
+ *                             Programs screen. Carries the real previous and
+ *                             next path ids; never fired when the tap kept the
+ *                             same program.
  */
 export type AnalyticsEvent =
   | 'quest_completed'
@@ -49,7 +56,9 @@ export type AnalyticsEvent =
   | 'unsubscribed'
   | 'level_up'
   | 'restore_requested'
-  | 'subscription_manage_opened';
+  | 'subscription_manage_opened'
+  | 'program_selected'
+  | 'program_switched';
 
 /**
  * Params a real provider may want (primitive values only — no nested objects,
